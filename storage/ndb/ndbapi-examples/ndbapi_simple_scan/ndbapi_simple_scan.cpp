@@ -138,13 +138,17 @@ static void run_application(MYSQL &mysql,
   do_scan(myNdb);
 }
 
-struct QuadGSPO
-{
-  Uint32 g;
-  Uint32 s;
-  Uint32 p;
-  Uint32 o;
-};
+/*
+ * create table as:
+ *   create table test
+ *          (s int unsigned not null, p int unsigned not null,
+ *           o int unsigned not null, g int unsigned not null,
+ *           index gspo (g,s,p,o), index gpos (g,p,o,s), index gosp (g,o,s,p),
+ *           index spog (s,p,o,g), index posg (p,o,s,g), index ospg (o,s,p,g));
+ *
+ * load data with:
+ *    load data infile '/path/to/data.tsv' into table test;
+*/
 
 struct Quad
 {
@@ -182,17 +186,15 @@ static void do_scan(Ndb &myNdb)
   if (mySIndex == NULL)
     APIERROR(myDict->getNdbError());
     
-  /*
   NdbIndexScanOperation *ixScan = 
     myTransaction->scanIndex(mySIndex->getDefaultRecord(),
                              test->getDefaultRecord());
-  */
 
+  /*
   NdbScanOperation::ScanOptions options;
   options.optionsPresent=NdbScanOperation::ScanOptions::SO_SCANFLAGS;
   Uint32 scanFlags = NdbScanOperation::SF_OrderBy | NdbScanOperation::SF_MultiRange; 
   options.scan_flags=scanFlags;
-
   NdbIndexScanOperation *ixScan = 
     myTransaction->scanIndex(mySIndex->getDefaultRecord(),
                              test->getDefaultRecord(),
@@ -201,6 +203,7 @@ static void do_scan(Ndb &myNdb)
                                     NULL, // bound
                                     &options,
                                     sizeof(NdbScanOperation::ScanOptions));
+  */
 
   if (ixScan == NULL)
     APIERROR(myTransaction->getNdbError());
@@ -232,29 +235,29 @@ static void do_scan(Ndb &myNdb)
   bound.range_no= 0;
   */
   
-  Quad low2 = {1106,1105,1105,638};
-  Quad high2 = {1109,1105,1106,1108};
-  /*
-  Uint32 low2 = 283392;
-  Uint32 high2 = 283392;
-  //  Uint32 high = (Uint32)NULL;
-  printf("low: %u, high %u\n", low.s, high.s);
-  printf("low: %u, high %u\n", low.s, *((Uint32*)&high));
-  printf("size: %zu, %u, %zu, %u\n", sizeof(low), low.s, sizeof(low2), low2);
-  */
-  NdbIndexScanOperation::IndexBound bound2;
-  bound2.low_key= (char*)&low2;
-  bound2.low_key_count= 4;
-  bound2.low_inclusive= true;
-  bound2.high_key= (char*)&high2;
-  bound2.high_key_count= 4;
-  bound2.high_inclusive= false;
-  bound2.range_no= 1;
+  // Quad low2 = {1106,1105,1105,638};
+  // Quad high2 = {1109,1105,1106,1108};
+  // /*
+  // Uint32 low2 = 283392;
+  // Uint32 high2 = 283392;
+  // //  Uint32 high = (Uint32)NULL;
+  // printf("low: %u, high %u\n", low.s, high.s);
+  // printf("low: %u, high %u\n", low.s, *((Uint32*)&high));
+  // printf("size: %zu, %u, %zu, %u\n", sizeof(low), low.s, sizeof(low2), low2);
+  // */
+  // NdbIndexScanOperation::IndexBound bound2;
+  // bound2.low_key= (char*)&low2;
+  // bound2.low_key_count= 4;
+  // bound2.low_inclusive= true;
+  // bound2.high_key= (char*)&high2;
+  // bound2.high_key_count= 4;
+  // bound2.high_inclusive= false;
+  // bound2.range_no= 1;
 
   if (ixScan->setBound(mySIndex->getDefaultRecord(), bound))
     APIERROR(myTransaction->getNdbError());
-  if (ixScan->setBound(mySIndex->getDefaultRecord(), bound2))
-    APIERROR(myTransaction->getNdbError());
+  // if (ixScan->setBound(mySIndex->getDefaultRecord(), bound2))
+  //   APIERROR(myTransaction->getNdbError());
 
   printf("Start execute\n");
   if(myTransaction->execute( NdbTransaction::NoCommit ) != 0)
