@@ -274,6 +274,9 @@ static void do_scan(Ndb &myNdb)
 
   int rc=0;
 
+  size_t foo = sizeof(Uint32);
+  printf("sife of Uint32: %zu\n", foo);
+
   while ((rc = ixScan->nextResult((const char**) &prowData,
                                   true,
                                   false)) == 0)
@@ -286,6 +289,25 @@ static void do_scan(Ndb &myNdb)
       //        prowData->g,
       //        ixScan->get_range_no());
       printf("%u\t%u\t%u\t%u\n", prowData->s, prowData->p, prowData->o, prowData->g);
+
+      // access with pointer arithmetic of Uint32 struct members:
+      //Uint32 *s = &(prowData->s);
+      //printf("%u\t%u\t%u\t%u\n", *(s+0), *(s+1), *(s+2), *(s+3));
+      // access with pointer arithmetic of struct members as byte (= unsigned char) pointers:
+      //unsigned char *s = (unsigned char *)&(prowData->s);
+      //printf("%u\t%u\t%u\t%u\n", *(Uint32*)(s+0), *(Uint32*)(s+4), *(Uint32*)(s+8), *(Uint32*)(s+12));
+
+      // padding of first element in struct: same address location = no padding
+      //printf("p: %zu\t%zu\n", (long unsigned int)(prowData), (long unsigned int)&(prowData->s));
+
+      // direct access of struct members via Uint32 pointer arithmetic:
+      //Uint32 *s = (Uint32*)prowData;
+      //printf("%u\t%u\t%u\t%u\n", *(s+0), *(s+1), *(s+2), *(s+3));
+
+      // direct access of struct members via byte (= unsigned char) pointer arithmetic:
+      unsigned char *s = (unsigned char *)prowData;
+      printf("%u\t%u\t%u\t%u\n", *(Uint32*)(s+4*0), *(Uint32*)(s+4*1), *(Uint32*)(s+4*2), *(Uint32*)(s+4*3));
+
     }
 
   if (rc != 1)  APIERROR(myTransaction->getNdbError());
