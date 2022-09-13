@@ -54,6 +54,7 @@ ADD_EXECUTABLE(ndb_ndbapi_simple_dual ndbapi_simple_dual/main.cpp)
 ADD_EXECUTABLE(ndb_ndbapi_simple_index ndbapi_simple_index/main.cpp)
 ADD_EXECUTABLE(ndb_ndbapi_simple_scan ndbapi_simple_scan/ndbapi_simple_scan.cpp)
 ADD_EXECUTABLE(ndb_ndbapi_s_i_ndbrecord ndbapi_s_i_ndbrecord/main.cpp)
+#ADD_EXECUTABLE(ndb_ndbapi_multi_cursor ndbapi_multi_cursor/main.cpp)
 
 # MgmApi examples
 ADD_EXECUTABLE(ndb_mgmapi_logevent mgmapi_logevent/main.cpp)
