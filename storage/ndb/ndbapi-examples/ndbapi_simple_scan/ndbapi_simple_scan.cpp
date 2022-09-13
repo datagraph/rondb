@@ -114,6 +114,7 @@ int main(int argc, char** argv)
   return 0;
 }
 
+static void init_ndbrecord_info(Ndb &);
 static void do_scan(Ndb &);
 
 static void run_application(MYSQL &mysql,
@@ -132,11 +133,20 @@ static void run_application(MYSQL &mysql,
   Ndb myNdb( &cluster_connection, "mgr" );
   if (myNdb.init()) APIERROR(myNdb.getNdbError());
 
+  init_ndbrecord_info(myNdb);
   /*
    * Do different operations on database
    */
   do_scan(myNdb);
 }
+
+struct QuadGSPO
+{
+  Uint32 g;
+  Uint32 s;
+  Uint32 p;
+  Uint32 o;
+};
 
 struct Quad
 {
@@ -161,6 +171,136 @@ struct Single
   Uint32 s;
 };
 
+/* Clunky statics for shared NdbRecord stuff */
+static const NdbDictionary::Column *pattr1Col;
+static const NdbDictionary::Column *pattr2Col;
+static const NdbDictionary::Column *pattr3Col;
+static const NdbDictionary::Column *pattr4Col;
+
+static const NdbRecord *pallColsRecord;
+static const NdbRecord *psecondaryIndexRecord;
+
+static int attr1ColNum;
+static int attr2ColNum;
+static int attr3ColNum;
+static int attr4ColNum;
+
+/**************************************************************
+ * Initialise NdbRecord structures for table and index access *
+ **************************************************************/
+static void init_ndbrecord_info(Ndb &myNdb)
+{
+  /* Here we create various NdbRecord structures for accessing
+   * data using the tables and indexes on api_recattr_vs_record
+   * We could use the default NdbRecord structures, but then
+   * we wouldn't have the nice ability to read and write rows
+   * to and from the RowData and IndexRow structs
+   */
+  NdbDictionary::Dictionary* myDict= myNdb.getDictionary();
+  const NdbDictionary::Table *myTable= myDict->getTable("test");
+  
+  NdbDictionary::RecordSpecification recordSpec[4];
+
+  if (myTable == NULL) 
+    APIERROR(myDict->getNdbError());
+
+  pattr1Col = myTable->getColumn("s");
+  if (pattr1Col == NULL) APIERROR(myDict->getNdbError());
+  pattr2Col = myTable->getColumn("p");
+  if (pattr2Col == NULL) APIERROR(myDict->getNdbError());
+  pattr3Col = myTable->getColumn("o");
+  if (pattr3Col == NULL) APIERROR(myDict->getNdbError());
+  pattr4Col = myTable->getColumn("g");
+  if (pattr4Col == NULL) APIERROR(myDict->getNdbError());
+  
+  attr1ColNum = pattr1Col->getColumnNo();
+  attr2ColNum = pattr2Col->getColumnNo();
+  attr3ColNum = pattr3Col->getColumnNo();
+  attr4ColNum = pattr4Col->getColumnNo();
+  printf("attr: %d %d %d %d\n", attr1ColNum,attr2ColNum,attr3ColNum,attr4ColNum);
+  printf("off: %zu %zu %zu %zu \n",
+         offsetof(Quad, s), offsetof(Quad, p), offsetof(Quad, o), offsetof(Quad, g));
+    
+  // s = ATTR 1
+  recordSpec[0].column = pattr1Col;
+  recordSpec[0].offset = offsetof(Quad, s);
+  recordSpec[0].nullbit_byte_offset = 0; // Not nullable 
+  recordSpec[0].nullbit_bit_in_byte = 0;  
+        
+  // p = ATTR 2
+  recordSpec[1].column = pattr2Col;
+  recordSpec[1].offset = offsetof(Quad, p);
+  recordSpec[1].nullbit_byte_offset = 0;   // Not nullable
+  recordSpec[1].nullbit_bit_in_byte = 0;   
+
+  // o = ATTR 3
+  recordSpec[2].column = pattr3Col;
+  recordSpec[2].offset = offsetof(Quad, o);
+  recordSpec[2].nullbit_byte_offset = 0;   // Not nullable
+  recordSpec[2].nullbit_bit_in_byte = 0;
+
+  // g = ATTR 4
+  recordSpec[3].column = pattr4Col;
+  recordSpec[3].offset = offsetof(Quad, g);
+  recordSpec[3].nullbit_byte_offset = 0;   // Not nullable
+  recordSpec[3].nullbit_bit_in_byte = 0;
+
+  printf("attr: %d %d %d %d\n",
+         recordSpec[0].column->getColumnNo(),
+         recordSpec[1].column->getColumnNo(),
+         recordSpec[2].column->getColumnNo(),
+         recordSpec[3].column->getColumnNo());
+  printf("off: %u %u %u %u \n",
+         recordSpec[0].offset,
+         recordSpec[1].offset,
+         recordSpec[2].offset,
+         recordSpec[3].offset);
+
+  /* Create table record with all the columns */
+  pallColsRecord = 
+    myDict->createRecord(myTable, recordSpec, 4, sizeof(recordSpec[0]));
+        
+  if (pallColsRecord == NULL) APIERROR(myDict->getNdbError());
+
+  /* Create Index NdbRecord for secondary index access
+   * Note that we use the columns from the table to define the index
+   * access record
+   */
+  const NdbDictionary::Index *mySIndex= myDict->getIndex("gspo", "test");
+
+  recordSpec[0].column= pattr4Col;
+  recordSpec[0].offset= offsetof(QuadGSPO, g);
+  recordSpec[0].nullbit_byte_offset=0;
+  recordSpec[0].nullbit_bit_in_byte=0;
+
+  recordSpec[1].column= pattr1Col;
+  recordSpec[1].offset= offsetof(QuadGSPO, s);
+  recordSpec[1].nullbit_byte_offset=0;
+  recordSpec[1].nullbit_bit_in_byte=1;
+
+  recordSpec[2].column= pattr2Col;
+  recordSpec[2].offset= offsetof(QuadGSPO, p);
+  recordSpec[2].nullbit_byte_offset=0;
+  recordSpec[2].nullbit_bit_in_byte=1;
+
+  recordSpec[3].column= pattr3Col;
+  recordSpec[3].offset= offsetof(QuadGSPO, o);
+  recordSpec[3].nullbit_byte_offset=0;
+  recordSpec[3].nullbit_bit_in_byte=1;
+
+  /* Create NdbRecord for accessing via secondary index */
+  psecondaryIndexRecord = 
+    myDict->createRecord(mySIndex, 
+                         recordSpec, 
+                         4, 
+                         sizeof(recordSpec[0]));
+
+
+  if (psecondaryIndexRecord == NULL) 
+    APIERROR(myDict->getNdbError());
+
+}
+
 static void do_scan(Ndb &myNdb)
 {
   NdbTransaction *myTransaction= myNdb.startTransaction();
@@ -174,9 +314,14 @@ static void do_scan(Ndb &myNdb)
   if (mySIndex == NULL)
     APIERROR(myDict->getNdbError());
     
+/*
   NdbIndexScanOperation *ixScan = 
     myTransaction->scanIndex(mySIndex->getDefaultRecord(),
                              test->getDefaultRecord());
+*/
+  NdbIndexScanOperation *ixScan = 
+    myTransaction->scanIndex(psecondaryIndexRecord,
+                             pallColsRecord);
   /*
   NdbScanOperation::ScanOptions options;
   options.optionsPresent=NdbScanOperation::ScanOptions::SO_SCANFLAGS;
@@ -196,10 +341,12 @@ static void do_scan(Ndb &myNdb)
   if (ixScan == NULL)
     APIERROR(myTransaction->getNdbError());
 
-  /*
-  Tuple low={662743, 2219900};
-  Tuple high={662743, 3000000};
-
+  //  Tuple low={662743, 2219900};
+  // Tuple high={662743, 3000000};
+  Tuple low={1106, 2000000};
+  Tuple high={662743, 2200000};
+  // Tuple low={1, NULL};
+  // Tuple high={662743, NULL};
   NdbIndexScanOperation::IndexBound bound;
   bound.low_key= (char*)&low;
   bound.low_key_count= 2;
@@ -208,7 +355,6 @@ static void do_scan(Ndb &myNdb)
   bound.high_key_count= 2;
   bound.high_inclusive= true;
   bound.range_no= 0;
-  */
 
   /*
   Single val={662743};
@@ -222,24 +368,24 @@ static void do_scan(Ndb &myNdb)
   bound.range_no= 0;
   */
   
-  Single low = {283392};
-  Single high = {283392};
-  /*
-  Uint32 low2 = 283392;
-  Uint32 high2 = 283392;
-  //  Uint32 high = (Uint32)NULL;
-  printf("low: %u, high %u\n", low.s, high.s);
-  printf("low: %u, high %u\n", low.s, *((Uint32*)&high));
-  printf("size: %zu, %u, %zu, %u\n", sizeof(low), low.s, sizeof(low2), low2);
-  */
-  NdbIndexScanOperation::IndexBound bound;
-  bound.low_key= (char*)&low;
-  bound.low_key_count= 1;
-  bound.low_inclusive= true;
-  bound.high_key= (char*)&high;
-  bound.high_key_count= 1;
-  bound.high_inclusive= true;
-  bound.range_no= 0;
+  // Single low = {1106};
+  // Single high = {1109};
+  // /*
+  // Uint32 low2 = 283392;
+  // Uint32 high2 = 283392;
+  // //  Uint32 high = (Uint32)NULL;
+  // printf("low: %u, high %u\n", low.s, high.s);
+  // printf("low: %u, high %u\n", low.s, *((Uint32*)&high));
+  // printf("size: %zu, %u, %zu, %u\n", sizeof(low), low.s, sizeof(low2), low2);
+  // */
+  // NdbIndexScanOperation::IndexBound bound;
+  // bound.low_key= (char*)&low;
+  // bound.low_key_count= 1;
+  // bound.low_inclusive= true;
+  // bound.high_key= (char*)&high;
+  // bound.high_key_count= 1;
+  // bound.high_inclusive= true;
+  // bound.range_no= 0;
 
   if (ixScan->setBound(mySIndex->getDefaultRecord(), bound))
     APIERROR(myTransaction->getNdbError());
