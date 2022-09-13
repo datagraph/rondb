@@ -157,21 +157,6 @@ struct Quad
   Uint32 o;
   Uint32 g;
 };
-struct Triple
-{
-  Uint32 s;
-  Uint32 p;
-  Uint32 o;
-};
-struct Tuple
-{
-  Uint32 s;
-  Uint32 p;
-};
-struct Single
-{
-  Uint32 s;
-};
 
 static void do_scan(Ndb &myNdb)
 {
@@ -208,12 +193,12 @@ static void do_scan(Ndb &myNdb)
   if (ixScan == NULL)
     APIERROR(myTransaction->getNdbError());
 
-  //  Tuple low={662743, 2219900};
-  // Tuple high={662743, 3000000};
-  Tuple low={662743, 2000000};
-  Tuple high={662743, 2200000};
-  // Tuple low={1, NULL};
-  // Tuple high={662743, NULL};
+  // Quad low={662743, 2219900, (Uint32)NULL, (Uint32)NULL};
+  // Quad high={662743, 3000000, (Uint32)NULL, (Uint32)NULL};
+  Quad low={662743, 2000000, (Uint32)NULL, (Uint32)NULL};
+  Quad high={662743, 2200000, (Uint32)NULL, (Uint32)NULL};
+  //Quad low={1, (Uint32)NULL, (Uint32)NULL, (Uint32)NULL};
+  //Quad high={662743, (Uint32)NULL, (Uint32)NULL, (Uint32)NULL};
   NdbIndexScanOperation::IndexBound bound;
   bound.low_key= (char*)&low;
   bound.low_key_count= 2;
@@ -224,7 +209,7 @@ static void do_scan(Ndb &myNdb)
   bound.range_no= 0;
 
   /*
-  Single val={662743};
+  Quad val={662743, (Uint32)NULL, (Uint32)NULL, (Uint32)NULL};
   NdbIndexScanOperation::IndexBound bound;
   bound.low_key= (char*)&val;
   bound.low_key_count= 1;
@@ -255,9 +240,9 @@ static void do_scan(Ndb &myNdb)
   // bound2.range_no= 1;
 
   if (ixScan->setBound(mySIndex->getDefaultRecord(), bound))
-    APIERROR(myTransaction->getNdbError());
-  // if (ixScan->setBound(mySIndex->getDefaultRecord(), bound2))
-  //   APIERROR(myTransaction->getNdbError());
+     APIERROR(myTransaction->getNdbError());
+  //if (ixScan->setBound(mySIndex->getDefaultRecord(), bound2))
+  //  APIERROR(myTransaction->getNdbError());
 
   printf("Start execute\n");
   if(myTransaction->execute( NdbTransaction::NoCommit ) != 0)
@@ -274,8 +259,8 @@ static void do_scan(Ndb &myNdb)
 
   int rc=0;
 
-  size_t foo = sizeof(Uint32);
-  printf("sife of Uint32: %zu\n", foo);
+  //size_t foo = sizeof(Uint32);
+  //printf("sife of Uint32: %zu\n", foo);
 
   while ((rc = ixScan->nextResult((const char**) &prowData,
                                   true,
@@ -305,8 +290,8 @@ static void do_scan(Ndb &myNdb)
       //printf("%u\t%u\t%u\t%u\n", *(s+0), *(s+1), *(s+2), *(s+3));
 
       // direct access of struct members via byte (= unsigned char) pointer arithmetic:
-      unsigned char *s = (unsigned char *)prowData;
-      printf("%u\t%u\t%u\t%u\n", *(Uint32*)(s+4*0), *(Uint32*)(s+4*1), *(Uint32*)(s+4*2), *(Uint32*)(s+4*3));
+      //unsigned char *s = (unsigned char *)prowData;
+      //printf("%u\t%u\t%u\t%u\n", *(Uint32*)(s+4*0), *(Uint32*)(s+4*1), *(Uint32*)(s+4*2), *(Uint32*)(s+4*3));
 
     }
 
