@@ -163,9 +163,9 @@ static void do_read_using_default(Ndb &myNdb);
  */
 struct RowData
 {
-  int attr1;
-  int attr2;
-  int attr3;
+  Uint32 attr1;
+  Uint32 attr2;
+  Uint32 attr3;
 };
 
 
@@ -174,8 +174,8 @@ struct RowData
  */
 struct IndexRow
 {
-  unsigned int attr3;
-  unsigned int attr2;
+  Uint32 attr3;
+  Uint32 attr2;
 };
 
 static void run_application(MYSQL &mysql,
