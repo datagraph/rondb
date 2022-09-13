@@ -270,7 +270,7 @@ static void do_scan(Ndb &myNdb)
   printf("Done executed\n");
 
   printf("Start printing\n");
-  Quad *prowData; // Ptr to point to our data
+  const char *prowData; // Ptr to point to our data
 
   int rc=0;
 
@@ -288,7 +288,7 @@ static void do_scan(Ndb &myNdb)
       //        prowData->o,
       //        prowData->g,
       //        ixScan->get_range_no());
-      printf("%u\t%u\t%u\t%u\n", prowData->s, prowData->p, prowData->o, prowData->g);
+      //printf("%u\t%u\t%u\t%u\n", prowData->s, prowData->p, prowData->o, prowData->g);
 
       // access with pointer arithmetic of Uint32 struct members:
       //Uint32 *s = &(prowData->s);
@@ -305,9 +305,13 @@ static void do_scan(Ndb &myNdb)
       //printf("%u\t%u\t%u\t%u\n", *(s+0), *(s+1), *(s+2), *(s+3));
 
       // direct access of struct members via byte (= unsigned char) pointer arithmetic:
-      unsigned char *s = (unsigned char *)prowData;
-      printf("%u\t%u\t%u\t%u\n", *(Uint32*)(s+4*0), *(Uint32*)(s+4*1), *(Uint32*)(s+4*2), *(Uint32*)(s+4*3));
-
+      //unsigned char *s = (unsigned char *)prowData;
+      //printf("%u\t%u\t%u\t%u\n", *(Uint32*)(s+4*0), *(Uint32*)(s+4*1), *(Uint32*)(s+4*2), *(Uint32*)(s+4*3));
+      printf("%u\t%u\t%u\t%u\n",
+             *(const Uint32*)(prowData+4*0),
+             *(const Uint32*)(prowData+4*1),
+             *(const Uint32*)(prowData+4*2),
+             *(const Uint32*)(prowData+4*3));
     }
 
   if (rc != 1)  APIERROR(myTransaction->getNdbError());
