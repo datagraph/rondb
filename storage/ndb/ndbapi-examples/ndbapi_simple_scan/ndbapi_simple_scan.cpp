@@ -173,8 +173,19 @@ struct Single
   Uint32 s;
 };
 
+size_t sizeQuad = sizeof(Quad);
+size_t sizeTriple = sizeof(Triple);
+size_t sizeTuple = sizeof(Tuple);
+size_t sizeSingle = sizeof(Single);
+
 static void do_scan(Ndb &myNdb)
 {
+  // printf("size of Quad:   %zu, %zu\n", sizeQuad, sizeQuad/sizeSingle);
+  // printf("size of Triple: %zu, %zu\n", sizeTriple, sizeTriple/sizeSingle);
+  // printf("size of Tuple:  %zu, %zu\n", sizeTuple, sizeTuple/sizeSingle);
+  // printf("size of Single: %zu, %zu\n", sizeSingle, sizeSingle/sizeSingle);
+  // printf("size of Uint32: %zu\n", sizeof(Uint32));
+
   NdbTransaction *myTransaction= myNdb.startTransaction();
   if (myTransaction == NULL)
     APIERROR(myNdb.getNdbError());
@@ -208,18 +219,18 @@ static void do_scan(Ndb &myNdb)
   if (ixScan == NULL)
     APIERROR(myTransaction->getNdbError());
 
-  //  Tuple low={662743, 2219900};
+  // Tuple low={662743, 2219900};
   // Tuple high={662743, 3000000};
   Tuple low={662743, 2000000};
   Tuple high={662743, 2200000};
-  // Tuple low={1, NULL};
-  // Tuple high={662743, NULL};
+  // Tuple low={1, (Uint32)NULL};
+  // Single high={662743};
   NdbIndexScanOperation::IndexBound bound;
   bound.low_key= (char*)&low;
-  bound.low_key_count= 2;
+  bound.low_key_count= sizeof(low)/sizeSingle;
   bound.low_inclusive= true;
   bound.high_key= (char*)&high;
-  bound.high_key_count= 2;
+  bound.high_key_count= sizeof(high)/sizeSingle;
   bound.high_inclusive= true;
   bound.range_no= 0;
 
@@ -227,10 +238,10 @@ static void do_scan(Ndb &myNdb)
   Single val={662743};
   NdbIndexScanOperation::IndexBound bound;
   bound.low_key= (char*)&val;
-  bound.low_key_count= 1;
+  bound.low_key_count= sizeof(val)/sizeSingle;;
   bound.low_inclusive= true;
   bound.high_key= (char*)&val;
-  bound.high_key_count= 1;
+  bound.high_key_count= sizeof(val)/sizeSingle;;;
   bound.high_inclusive= true;
   bound.range_no= 0;
   */
@@ -238,8 +249,8 @@ static void do_scan(Ndb &myNdb)
   // Quad low2 = {1106,1105,1105,638};
   // Quad high2 = {1109,1105,1106,1108};
   // /*
-  // Uint32 low2 = 283392;
-  // Uint32 high2 = 283392;
+  // Uint32 low2 = 1109;
+  // Uint32 high2 = 1119;
   // //  Uint32 high = (Uint32)NULL;
   // printf("low: %u, high %u\n", low.s, high.s);
   // printf("low: %u, high %u\n", low.s, *((Uint32*)&high));
@@ -247,11 +258,11 @@ static void do_scan(Ndb &myNdb)
   // */
   // NdbIndexScanOperation::IndexBound bound2;
   // bound2.low_key= (char*)&low2;
-  // bound2.low_key_count= 4;
+  // bound2.low_key_count= sizeof(low2)/sizeSingle;
   // bound2.low_inclusive= true;
   // bound2.high_key= (char*)&high2;
-  // bound2.high_key_count= 4;
-  // bound2.high_inclusive= false;
+  // bound2.high_key_count= sizeof(high2)/sizeSingle;
+  // bound2.high_inclusive= true;
   // bound2.range_no= 1;
 
   if (ixScan->setBound(mySIndex->getDefaultRecord(), bound))
@@ -274,8 +285,8 @@ static void do_scan(Ndb &myNdb)
 
   int rc=0;
 
-  size_t foo = sizeof(Uint32);
-  printf("sife of Uint32: %zu\n", foo);
+  // size_t foo = sizeof(Uint32);
+  // printf("size of Uint32: %zu\n", foo);
 
   while ((rc = ixScan->nextResult((const char**) &prowData,
                                   true,
@@ -305,9 +316,8 @@ static void do_scan(Ndb &myNdb)
       //printf("%u\t%u\t%u\t%u\n", *(s+0), *(s+1), *(s+2), *(s+3));
 
       // direct access of struct members via byte (= unsigned char) pointer arithmetic:
-      unsigned char *s = (unsigned char *)prowData;
-      printf("%u\t%u\t%u\t%u\n", *(Uint32*)(s+4*0), *(Uint32*)(s+4*1), *(Uint32*)(s+4*2), *(Uint32*)(s+4*3));
-
+      //unsigned char *s = (unsigned char *)prowData;
+      //printf("%u\t%u\t%u\t%u\n", *(Uint32*)(s+4*0), *(Uint32*)(s+4*1), *(Uint32*)(s+4*2), *(Uint32*)(s+4*3));
     }
 
   if (rc != 1)  APIERROR(myTransaction->getNdbError());
