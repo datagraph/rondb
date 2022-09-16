@@ -41,23 +41,18 @@
  *
  */
 
-#include <mysql.h>
-#include <mysqld_error.h>
 #include <NdbApi.hpp>
 #include <stdlib.h>
 // Used for cout
 #include <stdio.h>
 #include <iostream>
 
-static void run_application(MYSQL &, Ndb_cluster_connection &);
+static void run_application(Ndb_cluster_connection &);
 
 #define PRINT_ERROR(code,msg) \
   std::cout << "Error in " << __FILE__ << ", line: " << __LINE__ \
             << ", code: " << code \
             << ", msg: " << msg << "." << std::endl
-#define MYSQLERROR(mysql) { \
-  PRINT_ERROR(mysql_errno(&mysql),mysql_error(&mysql)); \
-  exit(-1); }
 #define APIERROR(error) { \
   PRINT_ERROR(error.code,error.message); \
   exit(-1); }
@@ -66,15 +61,14 @@ int main(int argc, char** argv)
 {
   if (argc != 3)
   {
-    std::cout << "Arguments are <socket mysqld> <connect_string cluster>.\n";
+    std::cout << "Arguments are <connect_string cluster>.\n";
     exit(-1);
   }
   // ndb_init must be called first
   ndb_init();
 
-  // connect to mysql server and cluster and run application
+  // connect to cluster and run application
   {
-    char * mysqld_sock  = argv[1];
     const char *connectstring = argv[2];
     // Object representing the cluster
     Ndb_cluster_connection cluster_connection(connectstring);
@@ -95,18 +89,8 @@ int main(int argc, char** argv)
       exit(-1);
     }
 
-    // connect to mysql server
-    MYSQL mysql;
-    if ( !mysql_init(&mysql) ) {
-      std::cout << "mysql_init failed\n";
-      exit(-1);
-    }
-    if ( !mysql_real_connect(&mysql, "localhost", "root", "", "",
-			     0, mysqld_sock, 0) )
-      MYSQLERROR(mysql);
-    
     // run the application code
-    run_application(mysql, cluster_connection);
+    run_application(cluster_connection);
   }
 
   ndb_end(0);
@@ -116,15 +100,8 @@ int main(int argc, char** argv)
 
 static void do_scan(Ndb &);
 
-static void run_application(MYSQL &mysql,
-			    Ndb_cluster_connection &cluster_connection)
+static void run_application(Ndb_cluster_connection &cluster_connection)
 {
-  /********************************************
-   * Connect to database via mysql-c          *ndb_examples
-   ********************************************/
-  //mysql_query(&mysql, "CREATE DATABASE ndb_examples");
-  if (mysql_query(&mysql, "USE mgr") != 0) MYSQLERROR(mysql);
-
   /********************************************
    * Connect to database via NdbApi           *
    ********************************************/
