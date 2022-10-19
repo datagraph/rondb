@@ -301,4 +301,6 @@ static void do_scan(Ndb &myNdb)
 
   ixScan->close(true);
   printf("Done printing\n");
+
+  myNdb.closeTransaction(myTransaction);
 }
