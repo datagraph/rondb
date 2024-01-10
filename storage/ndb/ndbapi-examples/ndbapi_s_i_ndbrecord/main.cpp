@@ -303,6 +303,7 @@ int main(int argc, char** argv)
       APIERROR(myNdb->getNdbError());
 
     /* Specify key column to lookup in secondary index */
+    row.attr1= i;
     row.attr2= i;
 
     /* Specify new column value to set */
