@@ -198,6 +198,8 @@ select_count(Ndb* pNdb, const NdbDictionary::Table* pTab,
       row_count += tmp;
     }
     
+    pOp->close();
+
     if (eof == -1) {
       const NdbError err = pTrans->getNdbError();
       
