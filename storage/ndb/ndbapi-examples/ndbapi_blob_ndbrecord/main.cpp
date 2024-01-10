@@ -638,11 +638,11 @@ void ndb_run_ndbrecord_blob_operations(const char * connectstring)
   if(fetch_key(&myNdb) > 0)
     std::cout << "fetch_key: Success!" << std::endl;
 
-  if(update2_key(&myNdb) > 0)
-    std::cout << "update2_key: Success!" << std::endl;
+  // if(update2_key(&myNdb) > 0)
+  //   std::cout << "update2_key: Success!" << std::endl;
 
-  if(delete_key(&myNdb) > 0)
-    std::cout << "delete_key: Success!" << std::endl;
+  // if(delete_key(&myNdb) > 0)
+  //   std::cout << "delete_key: Success!" << std::endl;
 }
 
 int main(int argc, char**argv)
