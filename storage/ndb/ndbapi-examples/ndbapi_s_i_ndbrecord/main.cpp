@@ -324,6 +324,10 @@ int main(int argc, char** argv)
     if ( myTransaction->execute( NdbTransaction::Commit ) == -1 )
       APIERROR(myTransaction->getNdbError());
 
+    // Check rc anyway as there might be some operation not successful
+    if (myTransaction->getNdbError().status != NdbError::Success)
+      APIERROR(myTransaction->getNdbError());
+
     myNdb->closeTransaction(myTransaction);
   }
 
@@ -343,6 +347,10 @@ int main(int argc, char** argv)
       APIERROR(myTransaction->getNdbError());
 
     if (myTransaction->execute(NdbTransaction::Commit) == -1)
+      APIERROR(myTransaction->getNdbError());
+
+    // Check rc anyway as there might be some operation not successful
+    if (myTransaction->getNdbError().status != NdbError::Success)
       APIERROR(myTransaction->getNdbError());
 
     myNdb->closeTransaction(myTransaction);
