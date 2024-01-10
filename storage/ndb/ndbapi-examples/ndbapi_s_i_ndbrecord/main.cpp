@@ -312,7 +312,11 @@ int main(int argc, char** argv)
     unsigned char mask[1]= { 0x02 };            // Only update ATTR2
 
     const NdbOperation *myOperation=
-      myTransaction->updateTuple(key_record, (const char*)&row,
+      // pk_record works, key_record does not...
+      // key_record uses the index "MYINDEXNAME$unique"
+      // in the example ndbapi_simple_index using the RecAttr interface
+      // it works to use the "MYINDEXNAME$unique" to update.
+      myTransaction->updateTuple(pk_record, (const char*)&row,
                                  attr_record,(char*) &newRowData, mask);
     if (myOperation == NULL)
       APIERROR(myTransaction->getNdbError());
