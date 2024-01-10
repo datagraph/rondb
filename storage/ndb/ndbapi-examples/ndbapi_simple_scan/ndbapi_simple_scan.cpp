@@ -23,21 +23,22 @@
 */
 
 /* 
- *  ndbapi_simple.cpp: Using synchronous transactions in NDB API
+ *  ndbapi_simple_scan.cpp: Using a secondary index as a scan index in NDB API
+ *  based on ndbapi_simple.cpp but modified by Max-Gerd Retzlaff <mgr@matroid.org>
+ *  to iterate over all rows in the table by nextResult() as demonstrated
+ *  in ndbapi_recattr_vs_record/main.cpp in do_indexScan in the api_record branch,
+ *  also looking at the section "Compare with old API interface\n"
+ *  in ndbapi_multi_cursor/main.cpp
  *
  *  Correct output from this program is:
  *
- *  ATTR1 ATTR2
- *    0    10
- *    1     1
- *    2    12
- *  Detected that deleted tuple doesn't exist!
- *    4    14
- *    5     5
- *    6    16
- *    7     7
- *    8    18
- *    9     9
+ *  Start execute
+ *  Done executed
+ *  Start printing
+ *  1105    1105    638     1106
+ *  1105    1106    1       1107
+ *  1105    1106    1108    1109
+ *  Done printing
  *
  */
 
@@ -174,25 +175,42 @@ static void do_scan(Ndb &myNdb)
   if (mySIndex == NULL)
     APIERROR(myDict->getNdbError());
     
+  /*
   NdbIndexScanOperation *ixScan = 
     myTransaction->scanIndex(mySIndex->getDefaultRecord(),
                              test->getDefaultRecord());
+  */
 
-  /*
   NdbScanOperation::ScanOptions options;
   options.optionsPresent=NdbScanOperation::ScanOptions::SO_SCANFLAGS;
-  Uint32 scanFlags = NdbScanOperation::SF_OrderBy | NdbScanOperation::SF_MultiRange; 
+  Uint32 scanFlags = NdbScanOperation::SF_OrderBy | NdbScanOperation::SF_MultiRange;
   options.scan_flags=scanFlags;
   NdbIndexScanOperation *ixScan = 
     myTransaction->scanIndex(mySIndex->getDefaultRecord(),
                              test->getDefaultRecord(),
-                                    NdbOperation::LM_Read,
-                                    NULL, // mask
-                                    NULL, // bound
-                                    &options,
-                                    sizeof(NdbScanOperation::ScanOptions));
-  */
+                             NdbOperation::LM_Read,
+                             NULL, // mask
+                             NULL, // bound
+                             &options,
+                             sizeof(NdbScanOperation::ScanOptions));
 
+  /*
+  printf("size scanoptions: %zu\n", sizeof(NdbScanOperation::ScanOptions));
+  printf("scanoptions.size: %u\n", options.size());
+  printf("scanoptions.size: %p\n", (void*)(options.size));
+  printf("scanoptions.optionsPresent: %llu\n", options.optionsPresent);
+  printf("scanoptions.scan_flags: %u\n", options.scan_flags);
+  printf("scanoptions.parallel: %u\n", options.parallel);
+  printf("scanoptions.batch: %u\n", options.batch);
+  printf("scanoptions.extraGetValues: %p\n", (void*)(options.extraGetValues));
+  printf("scanoptions.numExtraGetValues: %u\n", options.numExtraGetValues);
+  printf("scanoptions.partitionId: %u\n", options.partitionId);
+  printf("scanoptions.interpretedCode: %p\n", (void*)(options.interpretedCode));
+  printf("scanoptions.customData: %p\n", (void*)(options.customData));
+  printf("scanoptions.partitionInfo: %p\n", (void*)(options.partitionInfo));
+  printf("scanoptions.sizeOfPartInfo: %u\n", options.sizeOfPartInfo);
+  */
+ 
   if (ixScan == NULL)
     APIERROR(myTransaction->getNdbError());
 
@@ -212,6 +230,12 @@ static void do_scan(Ndb &myNdb)
   bound.range_no= 0;
 
   /*
+  printf("bound.low_inclusive offset: %zu\n", offsetof(struct NdbIndexScanOperation::IndexBound, low_inclusive));
+  printf("bound.low_inclusive sizeof: %zu\n", sizeof(bound.low_inclusive));
+  printf("bound.high_key offset: %zu\n", offsetof(struct NdbIndexScanOperation::IndexBound, high_key));
+  */
+    
+  /*
   Single val={662743};
   NdbIndexScanOperation::IndexBound bound;
   bound.low_key= (char*)&val;
@@ -223,35 +247,35 @@ static void do_scan(Ndb &myNdb)
   bound.range_no= 0;
   */
   
-  // Quad low2 = {1106,1105,1105,638};
-  // Quad high2 = {1109,1105,1106,1108};
-  // /*
-  // Uint32 low2 = 1109;
-  // Uint32 high2 = 1119;
-  // //  Uint32 high = (Uint32)NULL;
-  // printf("low: %u, high %u\n", low.s, high.s);
-  // printf("low: %u, high %u\n", low.s, *((Uint32*)&high));
-  // printf("size: %zu, %u, %zu, %u\n", sizeof(low), low.s, sizeof(low2), low2);
-  // */
-  // NdbIndexScanOperation::IndexBound bound2;
-  // bound2.low_key= (char*)&low2;
-  // bound2.low_key_count= sizeof(low2)/sizeSingle;
-  // bound2.low_inclusive= true;
-  // bound2.high_key= (char*)&high2;
-  // bound2.high_key_count= sizeof(high2)/sizeSingle;
-  // bound2.high_inclusive= true;
-  // bound2.range_no= 1;
+  Quad low2 = {1106,1105,1105,638};
+  Quad high2 = {1109,1105,1106,1108};
+  /*
+  Uint32 low2 = 1109;
+  Uint32 high2 = 1119;
+  //  Uint32 high = (Uint32)NULL;
+  printf("low: %u, high %u\n", low.s, high.s);
+  printf("low: %u, high %u\n", low.s, *((Uint32*)&high));
+  printf("size: %zu, %u, %zu, %u\n", sizeof(low), low.s, sizeof(low2), low2);
+  */
+  NdbIndexScanOperation::IndexBound bound2;
+  bound2.low_key= (char*)&low2;
+  bound2.low_key_count= sizeof(low2)/sizeSingle;
+  bound2.low_inclusive= true;
+  bound2.high_key= (char*)&high2;
+  bound2.high_key_count= sizeof(high2)/sizeSingle;
+  bound2.high_inclusive= true;
+  bound2.range_no= 1;
 
-  if (ixScan->setBound(mySIndex->getDefaultRecord(), bound))
-    APIERROR(myTransaction->getNdbError());
-  // if (ixScan->setBound(mySIndex->getDefaultRecord(), bound2))
+  // if (ixScan->setBound(mySIndex->getDefaultRecord(), bound))
   //   APIERROR(myTransaction->getNdbError());
+  if (ixScan->setBound(mySIndex->getDefaultRecord(), bound2))
+    APIERROR(myTransaction->getNdbError());
 
   printf("Start execute\n");
   if(myTransaction->execute( NdbTransaction::NoCommit ) != 0)
     APIERROR(myTransaction->getNdbError());
 
-  // Check rc anyway
+  // Check rc anyway as there might be some operation not successful
   if (myTransaction->getNdbError().status != NdbError::Success)
     APIERROR(myTransaction->getNdbError());
 
