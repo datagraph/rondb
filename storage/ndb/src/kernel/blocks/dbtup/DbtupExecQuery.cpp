@@ -4344,7 +4344,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if ((TleftType | TrightType) != 0)
+	  if ((TleftType & TrightType) != 0)
           {
 	    Uint64 Tdest0= Tleft0 + Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4369,7 +4369,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if ((TleftType | TrightType) != 0)
+	  if ((TleftType & TrightType) != 0)
           {
 	    Int64 Tdest0= Tleft0 - Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4425,7 +4425,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TrightType= TregMemBuffer[TrightRegister];
 	  Uint32 Tright0= TregMemBuffer[TrightRegister + 2];
 	  Uint32 Tright1= TregMemBuffer[TrightRegister + 3];
-	  if ((TrightType | TleftType) != 0)
+	  if ((TrightType & TleftType) != 0)
           {
 	    jamDebug();
 	    if ((Tleft0 == Tright0) && (Tleft1 == Tright1))
@@ -4451,7 +4451,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TrightType= TregMemBuffer[TrightRegister];
 	  Uint32 Tright0= TregMemBuffer[TrightRegister + 2];
 	  Uint32 Tright1= TregMemBuffer[TrightRegister + 3];
-	  if ((TrightType | TleftType) != 0)
+	  if ((TrightType & TleftType) != 0)
           {
 	    jamDebug();
 	    if ((Tleft0 != Tright0) || (Tleft1 != Tright1))
@@ -4477,7 +4477,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
 
-	  if ((TrightType | TleftType) != 0)
+	  if ((TrightType & TleftType) != 0)
           {
 	    jamDebug();
 	    if (Tleft0 < Tright0)
@@ -4503,7 +4503,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
 	  
 
-	  if ((TrightType | TleftType) != 0)
+	  if ((TrightType & TleftType) != 0)
           {
 	    jamDebug();
 	    if (Tleft0 <= Tright0)
@@ -4529,7 +4529,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
 	  
 
-	  if ((TrightType | TleftType) != 0)
+	  if ((TrightType & TleftType) != 0)
           {
 	    jamDebug();
 	    if (Tleft0 > Tright0)
@@ -4554,7 +4554,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
 
-	  if ((TrightType | TleftType) != 0)
+	  if ((TrightType & TleftType) != 0)
           {
 	    jamDebug();
 	    if (Tleft0 >= Tright0)
