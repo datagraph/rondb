@@ -545,6 +545,14 @@ int Dbtup::TUPKEY_abort(KeyReqStruct * req_struct, int error_type)
     jam();
     terrorCode = ZUNSUPPORTED_BRANCH;
     break;
+  case 41:
+    jam();
+    terrorCode = ZSHIFT_OVERFLOW_ERROR;
+    break;
+  case 42:
+    jam();
+    terrorCode = ZDIV_BY_ZERO_ERROR;
+    break;
   default:
     ndbabort();
   }//switch

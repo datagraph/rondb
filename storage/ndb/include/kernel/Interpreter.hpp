@@ -45,11 +45,13 @@ public:
    * i = Instruction            -  5 Bits ( 0 - 5 ) max 63
    * x = Register 1             -  3 Bits ( 6 - 8 ) max 7
    * y = Register 2             -  3 Bits ( 9 -11 ) max 7
+   * z = Register 3             -  3 Bits ( 12 -14 ) max 7
    * b = Branch offset (only branches)
+   * b can also be constant, column id, ...
    *
    *           1111111111222222222233
    * 01234567890123456789012345678901
-   * iiiiiixxxyyy    bbbbbbbbbbbbbbbb
+   * iiiiiixxxyyyzzz bbbbbbbbbbbbbbbb
    *
    *
    */
@@ -84,6 +86,16 @@ public:
   static constexpr Uint32 BRANCH_ATTR_NE_NULL = 25;
   static constexpr Uint32 BRANCH_ATTR_OP_PARAM = 26;
   static constexpr Uint32 BRANCH_ATTR_OP_ATTR = 27;
+
+  static constexpr Uint32 LSHIFT_REG_REG = 28;
+  static constexpr Uint32 RSHIFT_REG_REG = 29;
+  static constexpr Uint32 MUL_REG_REG = 30;
+  static constexpr Uint32 DIV_REG_REG = 31;
+  static constexpr Uint32 AND_REG_REG = 32;
+  static constexpr Uint32 OR_REG_REG = 33;
+  static constexpr Uint32 XOR_REG_REG = 34;
+  static constexpr Uint32 NOT_REG_REG = 35;
+  static constexpr Uint32 MOD_REG_REG = 36;
 
   /**
    * Macros for creating code
