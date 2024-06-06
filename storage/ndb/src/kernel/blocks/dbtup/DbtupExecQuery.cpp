@@ -108,7 +108,7 @@
 #define DEB_LCP_LGMAN(arglist) do { } while (0)
 #endif
 
-// #define TRACE_INTERPRETER
+#define TRACE_INTERPRETER
 
 /* For debugging */
 static void
@@ -4105,6 +4105,10 @@ Dbtup::lookupInterpreterParameter(Uint32 paramNo,
   return head;
 }
 
+#define HEAP_MEMORY_SIZE_DWORDS 8200
+#define MAX_HEAP_OFFSET 65535
+#define NULL_INDICATOR 0
+#define NOT_NULL_INDICATOR 1
 int Dbtup::interpreterNextLab(Signal* signal,
                               KeyReqStruct* req_struct,
                               Uint32* logMemory,
@@ -4122,12 +4126,16 @@ int Dbtup::interpreterNextLab(Signal* signal,
   Uint32 TcurrentSize= TmainProgLen;
   Uint32 TdataWritten= 0;
   Uint32 RstackPtr= 0;
+  char *TheapMemoryChar;
   union {
     Uint32 TregMemBuffer[32];
     Uint64 align[16];
   };
   (void)align; // kill warning
   Uint32 TstackMemBuffer[32];
+  Uint64 TheapMemory[8200];
+
+  TheapMemoryChar = (char*)&TheapMemory[0];
 
   Uint32& RnoOfInstructions = req_struct->no_exec_instructions;
   ndbassert(RnoOfInstructions == 0);
@@ -4137,16 +4145,19 @@ int Dbtup::interpreterNextLab(Signal* signal,
   // They are handled as 64 bit values. Thus the 32 most significant
   // bits are zeroed for 32 bit values.
   /* ---------------------------------------------------------------- */
-  TregMemBuffer[0]= 0;
-  TregMemBuffer[4]= 0;
-  TregMemBuffer[8]= 0;
-  TregMemBuffer[12]= 0;
-  TregMemBuffer[16]= 0;
-  TregMemBuffer[20]= 0;
-  TregMemBuffer[24]= 0;
-  TregMemBuffer[28]= 0;
+  TregMemBuffer[0]= NULL_INDICATOR;
+  TregMemBuffer[4]= NULL_INDICATOR;
+  TregMemBuffer[8]= NULL_INDICATOR;
+  TregMemBuffer[12]= NULL_INDICATOR;
+  TregMemBuffer[16]= NULL_INDICATOR;
+  TregMemBuffer[20]= NULL_INDICATOR;
+  TregMemBuffer[24]= NULL_INDICATOR;
+  TregMemBuffer[28]= NULL_INDICATOR;
   Uint32 tmpHabitant= ~0;
 
+#ifdef TRACE_INTERPRETER
+  g_eventLogger->info("Pogram size: %u", TcurrentSize);
+#endif
   while (RnoOfInstructions < 8000) {
     /* ---------------------------------------------------------------- */
     /* EXECUTE THE NEXT INTERPRETER INSTRUCTION.                        */
@@ -4173,7 +4184,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	// as long as it fits in the 64 bits of the register.
 	/* ---------------------------------------------------------------- */
 	{
-	  Uint32 theAttrinfo= theInstruction;
+	  Uint32 theAttrinfo= (theInstruction & 0xFFFF0000);
 	  int TnoDataRW= readAttributes(req_struct,
 				     &theAttrinfo,
 				     (Uint32)1,
@@ -4185,7 +4196,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             // Two words read means that we get the instruction plus one 32 
             // word read. Thus we set the register to be a 32 bit register.
             /* ------------------------------------------------------------- */
-            TregMemBuffer[theRegister]= 0x50;
+            TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
             // arithmetic conversion if big-endian
             * (Int64*)(TregMemBuffer+theRegister+2)= TregMemBuffer[theRegister+1];
           }
@@ -4195,7 +4206,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             // Three words read means that we get the instruction plus two 
             // 32 words read. Thus we set the register to be a 64 bit register.
             /* ------------------------------------------------------------- */
-            TregMemBuffer[theRegister]= 0x60;
+            TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
             TregMemBuffer[theRegister+3]= TregMemBuffer[theRegister+2];
             TregMemBuffer[theRegister+2]= TregMemBuffer[theRegister+1];
           }
@@ -4205,7 +4216,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             // One word read means that we must have read a NULL value. We set
             // the register to indicate a NULL value.
             /* ------------------------------------------------------------- */
-            TregMemBuffer[theRegister]= 0;
+            TregMemBuffer[theRegister]= NULL_INDICATOR;
             TregMemBuffer[theRegister + 2]= 0;
             TregMemBuffer[theRegister + 3]= 0;
           }
@@ -4236,6 +4247,10 @@ int Dbtup::interpreterNextLab(Signal* signal,
               req_struct->tablePtrP->tabDescriptor[TattrDescrIndex];
             Uint32 TregType= TregMemBuffer[theRegister];
 
+            if (unlikely((TregType == NULL_INDICATOR)))
+            {
+	      return TUPKEY_abort(req_struct, 20);
+            }
             /* --------------------------------------------------------------- */
             // Calculate the number of words of this attribute.
             // We allow writes into arrays as long as they fit into the 64 bit
@@ -4303,20 +4318,458 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	    }
 	    break;
           }
+      case Interpreter::READ_PARTIAL_ATTR_TO_MEM:
+      {
+        jamDebug();
+
+        Uint32 ToffsetType= TregMemBuffer[theRegister];
+        Int64 Toffset= * (Int64*)(TregMemBuffer + theRegister + 2);
+        if (unlikely(Toffset < 0 ||
+                     (Toffset > ((HEAP_MEMORY_SIZE_DWORDS * 8) -
+                      (MAX_TUPLE_SIZE_IN_WORDS * 4))) ||
+                     ((Toffset & 7) != 0)))
+        {
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("Offset %lld isn't ok, %u", Toffset, __LINE__);
+#endif
+          return TUPKEY_abort(req_struct, 43);
+        }
+        Uint32 memory_offset = Uint32(Toffset);
+        Uint32 TposRegister= Interpreter::getReg2(theInstruction) << 2;
+        Uint32 TsizeRegister= Interpreter::getReg4(theInstruction) << 2;
+        Uint32 TposType= TregMemBuffer[TposRegister];
+        Uint32 TsizeType= TregMemBuffer[TsizeRegister];
+        if (unlikely((ToffsetType == NULL_INDICATOR) ||
+                     (TposType == NULL_INDICATOR) ||
+                     (TsizeType == NULL_INDICATOR)))
+        {
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("Reg %u or %u or %u NULL, LINE: %u",
+                              theRegister >> 2,
+                              TposRegister >> 2,
+                              TsizeRegister >> 2,
+                              __LINE__);
+#endif
+          return TUPKEY_abort(req_struct, 20);
+        }
+        Int64 Tpos= * (Int64*)(TregMemBuffer + TposRegister + 2);
+        if (unlikely(Tpos < 0 || Tpos >= (MAX_TUPLE_SIZE_IN_WORDS * 4)))
+        {
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("Pos %lld isn't ok, %u", Tpos, __LINE__);
+#endif
+          return TUPKEY_abort(req_struct, 44);
+        }
+        Uint32 read_pos = (Uint32)Tpos;
+        Int64 Tsize= * (Int64*)(TregMemBuffer + TsizeRegister + 2);
+        if (unlikely(Tsize < 0 || Tsize >= (MAX_TUPLE_SIZE_IN_WORDS * 4)))
+        {
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("Size %lld isn't ok, %u", Tsize, __LINE__);
+#endif
+          return TUPKEY_abort(req_struct, 44);
+        }
+        Uint32 read_size = (Uint32)Tsize;
+        Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+        Uint32 TattrId = theInstruction >> 19;
+        AttributeHeader ah(TattrId, 1); // 1 sets the partial read flag
+        Uint32 TdataForRead[2];
+        TdataForRead[0] = ah.m_value;
+        TdataForRead[1] = read_size | read_pos << 16;
+        int TnoDataRW= readAttributes(req_struct,
+                                     &TdataForRead[0],
+                                     (Uint32)2,
+                                     (Uint32*)&TheapMemoryChar[memory_offset],
+                                     (Uint32)MAX_TUPLE_SIZE_IN_WORDS);
+        if (TnoDataRW < 0)
+        {
+          jamDebug();
+          terrorCode = Uint32(-TnoDataRW);
+          tupkeyErrorLab(req_struct);
+          return -1;
+        }
+        Uint32 *memory_ptr = (Uint32*)&TheapMemoryChar[memory_offset];
+        Uint32 header = *memory_ptr;
+        AttributeHeader ah_read(header);
+        if (ah_read.isNULL())
+        {
+          TregMemBuffer[TdestRegister]= NULL_INDICATOR;
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("READ_PARTIAL_ATTR_TO_MEM: NULL");
+#endif
+        }
+        else
+        {
+          Uint32 read_len = ah_read.getByteSize();
+          * (Int64*)(TregMemBuffer+TdestRegister+2)= read_len;
+          TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("READ_ATTR_TO_MEM: Len: %u", read_len);
+#endif
+        }
+        break; 
+      }
+      case Interpreter::READ_ATTR_TO_MEM:
+      {
+        jamDebug();
+        Uint32 ToffsetType= TregMemBuffer[theRegister];
+        Int64 Toffset= * (Int64*)(TregMemBuffer + theRegister + 2);
+        if (unlikely((ToffsetType == NULL_INDICATOR)))
+        {
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("Reg %u NULL, LINE: %u", theRegister >> 2, __LINE__);
+#endif
+	  return TUPKEY_abort(req_struct, 20);
+        }
+        if (unlikely(Toffset < 0 ||
+                     (Toffset > ((HEAP_MEMORY_SIZE_DWORDS * 8) -
+                      (MAX_TUPLE_SIZE_IN_WORDS * 4))) ||
+                     ((Toffset & 7) != 0)))
+        {
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("Offset %lld isn't ok, %u", Toffset, __LINE__);
+#endif
+	  return TUPKEY_abort(req_struct, 43);
+        }
+        Uint32 memory_offset = Uint32(Toffset);
+	Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+        Uint32 TattrId = theInstruction >> 16;
+        Uint32 theAttrinfo = (TattrId << 16);
+        int TnoDataRW= readAttributes(req_struct,
+                                     &theAttrinfo,
+                                     (Uint32)1,
+                                     (Uint32*)&TheapMemoryChar[memory_offset],
+                                     (Uint32)MAX_TUPLE_SIZE_IN_WORDS);
+        if (TnoDataRW < 0)
+        {
+          jamDebug();
+          terrorCode = Uint32(-TnoDataRW);
+          tupkeyErrorLab(req_struct);
+          return -1;
+        }
+        Uint32 *memory_ptr = (Uint32*)&TheapMemoryChar[memory_offset];
+        Uint32 header = *memory_ptr;
+        AttributeHeader ah(header);
+        if (ah.isNULL())
+        {
+          TregMemBuffer[TdestRegister]= NULL_INDICATOR;
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("READ_ATTR_TO_MEM: NULL");
+#endif
+        }
+        else
+        {
+          Uint32 read_len = ah.getByteSize();
+          * (Int64*)(TregMemBuffer+TdestRegister+2)= read_len;
+          TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("READ_ATTR_TO_MEM: Len: %u", read_len);
+#endif
+        }
+        break;
+      }
+      case Interpreter::READ_UINT8_MEM_TO_REG:
+      {
+        jamDebug();
+        Uint32 memoryOffset = theInstruction >> 16;
+        if (unlikely(memoryOffset > MAX_HEAP_OFFSET))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
+        Uint8 value = TheapMemoryChar[memoryOffset];
+	* (Int64*)(TregMemBuffer+theRegister+2)= (Int64)value;
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
+        break;
+      }
+      case Interpreter::READ_UINT16_MEM_TO_REG:
+      {
+        jamDebug();
+        Uint32 memoryOffset = theInstruction >> 16;
+        Uint16 value;
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 1)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
+        memcpy(&value, &TheapMemoryChar[memoryOffset], 2);
+	* (Int64*)(TregMemBuffer+theRegister+2)= (Int64)value;
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
+        break;
+      }
+      case Interpreter::READ_UINT32_MEM_TO_REG:
+      {
+        jamDebug();
+        Uint32 memoryOffset = theInstruction >> 16;
+        Uint32 value;
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 3)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
+        memcpy(&value, &TheapMemoryChar[memoryOffset], 4);
+	* (Int64*)(TregMemBuffer+theRegister+2)= (Int64)value;
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
+        break;
+      }
+      case Interpreter::READ_INT64_MEM_TO_REG:
+      {
+        jamDebug();
+        Uint32 memoryOffset = theInstruction >> 16;
+        Int64 value;
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 7)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
+        memcpy(&value, &TheapMemoryChar[memoryOffset], 8);
+	* (Int64*)(TregMemBuffer+theRegister+2)= value;
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
+        break;
+      }
+
+      case (Interpreter::READ_UINT8_MEM_TO_REG + OVERFLOW_OPCODE):
+      {
+        jamDebug();
+        Uint32 registerOffset = Interpreter::getReg2(theInstruction) << 2;
+	Int64 memoryOffset = * (Int64*)(TregMemBuffer + registerOffset + 2);
+	Uint32 memoryOffsetType= TregMemBuffer[registerOffset];
+	if (likely(memoryOffsetType == NULL_INDICATOR))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 0)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
+        Uint8 value = TheapMemoryChar[memoryOffset];
+	* (Int64*)(TregMemBuffer+theRegister+2)= (Int64)value;
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
+        break;
+      }
+      case (Interpreter::READ_UINT16_MEM_TO_REG + OVERFLOW_OPCODE):
+      {
+        jamDebug();
+        Uint32 registerOffset = Interpreter::getReg2(theInstruction) << 2;
+	Int64 memoryOffset = * (Int64*)(TregMemBuffer + registerOffset + 2);
+	Uint32 memoryOffsetType= TregMemBuffer[registerOffset];
+        Uint16 value;
+	if (likely(memoryOffsetType == NULL_INDICATOR))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 1)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
+        memcpy(&value, &TheapMemoryChar[memoryOffset], 2);
+	* (Int64*)(TregMemBuffer+theRegister+2)= (Int64)value;
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
+        break;
+      }
+      case (Interpreter::READ_UINT32_MEM_TO_REG + OVERFLOW_OPCODE):
+      {
+        jamDebug();
+        Uint32 registerOffset = Interpreter::getReg2(theInstruction) << 2;
+	Int64 memoryOffset = * (Int64*)(TregMemBuffer + registerOffset + 2);
+	Uint32 memoryOffsetType= TregMemBuffer[registerOffset];
+        Uint32 value;
+	if (likely(memoryOffsetType == NULL_INDICATOR))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 3)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
+        memcpy(&value, &TheapMemoryChar[memoryOffset], 4);
+	* (Int64*)(TregMemBuffer+theRegister+2)= (Int64)value;
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
+        break;
+      }
+      case (Interpreter::READ_INT64_MEM_TO_REG + OVERFLOW_OPCODE):
+      {
+        jamDebug();
+        Uint32 registerOffset = Interpreter::getReg2(theInstruction) << 2;
+	Int64 memoryOffset = * (Int64*)(TregMemBuffer + registerOffset + 2);
+	Uint32 memoryOffsetType= TregMemBuffer[registerOffset];
+        Int64 value;
+	if (likely(memoryOffsetType == NULL_INDICATOR))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 7)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
+        memcpy(&value, &TheapMemoryChar[memoryOffset], 8);
+	* (Int64*)(TregMemBuffer+theRegister+2)= value;
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
+        break;
+      }
+
+      case Interpreter::WRITE_UINT8_REG_TO_MEM:
+      {
+        jamDebug();
+        Uint32 TregType= TregMemBuffer[theRegister];
+	if (unlikely(TregType == NULL_INDICATOR))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+        Uint32 memoryOffset = theInstruction >> 16;
+	Int64 Tvalue = * (Int64*)(TregMemBuffer+theRegister+2);
+        Uint8 val = (Uint8)Tvalue;
+        memcpy(&TheapMemoryChar[memoryOffset], &val, 1);
+        break;
+      }
+      case Interpreter::WRITE_UINT16_REG_TO_MEM:
+      {
+        jamDebug();
+        Uint32 TregType= TregMemBuffer[theRegister];
+	if (unlikely(TregType == NULL_INDICATOR))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+        Uint32 memoryOffset = theInstruction >> 16;
+	Int64 Tvalue = * (Int64*)(TregMemBuffer+theRegister+2);
+        Uint16 val = (Uint16)Tvalue;
+        memcpy(&TheapMemoryChar[memoryOffset], &val, 2);
+        break;
+      }
+      case Interpreter::WRITE_UINT32_REG_TO_MEM:
+      {
+        jamDebug();
+        Uint32 TregType= TregMemBuffer[theRegister];
+	if (unlikely(TregType == NULL_INDICATOR))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+        Uint32 memoryOffset = theInstruction >> 16;
+	Int64 Tvalue = * (Int64*)(TregMemBuffer+theRegister+2);
+        Uint32 val = (Uint32)Tvalue;
+        memcpy(&TheapMemoryChar[memoryOffset], &val, 4);
+        break;
+      }
+      case Interpreter::WRITE_INT64_REG_TO_MEM:
+      {
+        jamDebug();
+        Uint32 TregType= TregMemBuffer[theRegister];
+	if (unlikely(TregType == NULL_INDICATOR))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+        Uint32 memoryOffset = theInstruction >> 16;
+	Int64 Tvalue = * (Int64*)(TregMemBuffer+theRegister+2);
+        memcpy(&TheapMemoryChar[memoryOffset], &Tvalue, 8);
+        break;
+      }
+
+      case (Interpreter::WRITE_UINT8_REG_TO_MEM + OVERFLOW_OPCODE):
+      {
+        jamDebug();
+        Uint32 registerOffset = Interpreter::getReg2(theInstruction) << 2;
+	Int64 memoryOffset = * (Int64*)(TregMemBuffer + registerOffset + 2);
+	Uint32 memoryOffsetType= TregMemBuffer[registerOffset];
+        Uint32 TregType= TregMemBuffer[theRegister];
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 7)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
+	if (unlikely(TregType == NULL_INDICATOR ||
+                     memoryOffsetType == NULL_INDICATOR))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+	Int64 Tvalue = * (Int64*)(TregMemBuffer+theRegister+2);
+        Uint8 val = (Uint8)Tvalue;
+        memcpy(&TheapMemoryChar[memoryOffset], &val, 1);
+        break;
+      }
+      case (Interpreter::WRITE_UINT16_REG_TO_MEM + OVERFLOW_OPCODE):
+      {
+        jamDebug();
+        Uint32 registerOffset = Interpreter::getReg2(theInstruction) << 2;
+	Int64 memoryOffset = * (Int64*)(TregMemBuffer + registerOffset + 2);
+	Uint32 memoryOffsetType= TregMemBuffer[registerOffset];
+        Uint32 TregType= TregMemBuffer[theRegister];
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 7)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
+	if (unlikely(TregType == NULL_INDICATOR ||
+                     memoryOffsetType == NULL_INDICATOR))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+	Int64 Tvalue = * (Int64*)(TregMemBuffer+theRegister+2);
+        Uint16 val = (Uint16)Tvalue;
+        memcpy(&TheapMemoryChar[memoryOffset], &val, 2);
+        break;
+      }
+      case (Interpreter::WRITE_UINT32_REG_TO_MEM + OVERFLOW_OPCODE):
+      {
+        jamDebug();
+        Uint32 registerOffset = Interpreter::getReg2(theInstruction) << 2;
+	Int64 memoryOffset = * (Int64*)(TregMemBuffer + registerOffset + 2);
+	Uint32 memoryOffsetType= TregMemBuffer[registerOffset];
+        Uint32 TregType= TregMemBuffer[theRegister];
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 7)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
+	if (unlikely(TregType == NULL_INDICATOR ||
+                     memoryOffsetType == NULL_INDICATOR))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+	Int64 Tvalue = * (Int64*)(TregMemBuffer+theRegister+2);
+        Uint32 val = (Uint32)Tvalue;
+        memcpy(&TheapMemoryChar[memoryOffset], &val, 4);
+        break;
+      }
+      case (Interpreter::WRITE_INT64_REG_TO_MEM + OVERFLOW_OPCODE):
+      {
+        jamDebug();
+        Uint32 registerOffset = Interpreter::getReg2(theInstruction) << 2;
+	Int64 memoryOffset = * (Int64*)(TregMemBuffer + registerOffset + 2);
+	Uint32 memoryOffsetType= TregMemBuffer[registerOffset];
+        Uint32 TregType= TregMemBuffer[theRegister];
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 7)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
+	if (unlikely(TregType == NULL_INDICATOR ||
+                     memoryOffsetType == NULL_INDICATOR))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+	Int64 Tvalue = * (Int64*)(TregMemBuffer+theRegister+2);
+        memcpy(&TheapMemoryChar[memoryOffset], &Tvalue, 8);
+        break;
+      }
+
       case Interpreter::LOAD_CONST_NULL:
 	jamDebug();
-	TregMemBuffer[theRegister]= 0;	/* NULL INDICATOR */
+	TregMemBuffer[theRegister]= NULL_INDICATOR;
 	break;
 
       case Interpreter::LOAD_CONST16:
 	jamDebug();
-	TregMemBuffer[theRegister]= 0x50;	/* 32 BIT UNSIGNED CONSTANT */
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
 	* (Int64*)(TregMemBuffer+theRegister+2)= theInstruction >> 16;
 	break;
 
       case Interpreter::LOAD_CONST32:
 	jamDebug();
-	TregMemBuffer[theRegister]= 0x50;	/* 32 BIT UNSIGNED CONSTANT */
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
 	* (Int64*)(TregMemBuffer+theRegister+2)= * 
 	  (TcurrentProgram+TprogramCounter);
 	TprogramCounter++;
@@ -4324,31 +4777,77 @@ int Dbtup::interpreterNextLab(Signal* signal,
 
       case Interpreter::LOAD_CONST64:
 	jamDebug();
-	TregMemBuffer[theRegister]= 0x60;	/* 64 BIT UNSIGNED CONSTANT */
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
         TregMemBuffer[theRegister + 2 ]= * (TcurrentProgram +
                                              TprogramCounter++);
         TregMemBuffer[theRegister + 3 ]= * (TcurrentProgram +
                                              TprogramCounter++);
 	break;
 
-      case Interpreter::ADD_REG_REG:
+      case Interpreter::ADD_CONST_REG_TO_REG:
 	jamDebug();
 	{
-	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
 	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
 
-	  Uint32 TrightType= TregMemBuffer[TrightRegister];
-	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
-	  
+	  Int64 Tright0= (Int64)(theInstruction >> 16);
 
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if ((TleftType | TrightType) != 0)
+	  if (likely(TleftType != NULL_INDICATOR))
           {
 	    Uint64 Tdest0= Tleft0 + Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::ADD_REG_REG:
+	jamDebug();
+	{
+	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
+          //Backwards compatability, use Reg4
+	  Uint32 TdestRegister= Interpreter::getReg4(theInstruction) << 2;
+
+	  Uint32 TrightType= TregMemBuffer[TrightRegister];
+	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
+	  
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
+          {
+	    Uint64 Tdest0= Tleft0 + Tright0;
+	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::SUB_CONST_REG_TO_REG:
+	jamDebug();
+	{
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Int64 Tright0= (Int64)(theInstruction >> 16);
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely(TleftType != NULL_INDICATOR))
+          {
+	    Uint64 Tdest0= Tleft0 - Tright0;
+	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4361,7 +4860,8 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	jamDebug();
 	{
 	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
-	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+          //Backwards compatability, use Reg4
+	  Uint32 TdestRegister= Interpreter::getReg4(theInstruction) << 2;
 
 	  Uint32 TrightType= TregMemBuffer[TrightRegister];
 	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
@@ -4369,11 +4869,480 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if ((TleftType | TrightType) != 0)
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
           {
 	    Int64 Tdest0= Tleft0 - Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::LSHIFT_CONST_REG_TO_REG:
+	jamDebug();
+	{
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Int64 Tright0= (Int64)(theInstruction >> 16);
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely(TleftType != NULL_INDICATOR))
+          {
+            if (likely(Tright0 <= 64 && Tright0 >= 0))
+            {
+	      Uint64 Tdest0= Tleft0 << Tright0;
+	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+            }
+            else
+            {
+	      return TUPKEY_abort(req_struct, 41);
+            }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::LSHIFT_REG_REG:
+	jamDebug();
+	{
+	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Uint32 TrightType= TregMemBuffer[TrightRegister];
+	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
+	  
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
+          {
+            if (likely(Tright0 <= 64 && Tright0 >= 0))
+            {
+	      Uint64 Tdest0= Tleft0 << Tright0;
+	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+            }
+            else
+            {
+	      return TUPKEY_abort(req_struct, 41);
+            }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::RSHIFT_CONST_REG_TO_REG:
+	jamDebug();
+	{
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Int64 Tright0= (Int64)(theInstruction >> 16);
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely(TleftType != NULL_INDICATOR))
+          {
+            if (likely(Tright0 <= 64 && Tright0 >= 0))
+            {
+	      Uint64 Tdest0= Tleft0 >> Tright0;
+	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+            }
+            else
+            {
+	      return TUPKEY_abort(req_struct, 41);
+            }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::RSHIFT_REG_REG:
+	jamDebug();
+	{
+	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Uint32 TrightType= TregMemBuffer[TrightRegister];
+	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
+	  
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
+          {
+            if (likely(Tright0 <= 64 && Tright0 >= 0))
+            {
+	      Uint64 Tdest0= Tleft0 >> Tright0;
+	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+            }
+            else
+            {
+	      return TUPKEY_abort(req_struct, 41);
+            }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::MUL_CONST_REG_TO_REG:
+	jamDebug();
+	{
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Int64 Tright0= (Int64)(theInstruction >> 16);
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely(TleftType != NULL_INDICATOR))
+          {
+	    Uint64 Tdest0= Tleft0 * Tright0;
+	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::MUL_REG_REG:
+	jamDebug();
+	{
+	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Uint32 TrightType= TregMemBuffer[TrightRegister];
+	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
+	  
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
+          {
+	    Uint64 Tdest0= Tleft0 * Tright0;
+	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::DIV_CONST_REG_TO_REG:
+	jamDebug();
+	{
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Int64 Tright0= (Int64)(theInstruction >> 16);
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely(TleftType != NULL_INDICATOR))
+          {
+            if (likely(Tright0 != 0))
+            {
+	      Uint64 Tdest0= Tleft0 / Tright0;
+	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+            }
+            else
+            {
+	      return TUPKEY_abort(req_struct, 42);
+            }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::DIV_REG_REG:
+	jamDebug();
+	{
+	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Uint32 TrightType= TregMemBuffer[TrightRegister];
+	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
+	  
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
+          {
+            if (likely(Tright0 != 0))
+            {
+	      Uint64 Tdest0= Tleft0 / Tright0;
+	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+            }
+            else
+            {
+	      return TUPKEY_abort(req_struct, 42);
+            }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::AND_CONST_REG_TO_REG:
+	jamDebug();
+	{
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Int64 Tright0= (Int64)(theInstruction >> 16);
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely(TleftType != NULL_INDICATOR))
+          {
+	    Uint64 Tdest0= Tleft0 & Tright0;
+	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::AND_REG_REG:
+	jamDebug();
+	{
+	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Uint32 TrightType= TregMemBuffer[TrightRegister];
+	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
+	  
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
+          {
+	    Uint64 Tdest0= Tleft0 & Tright0;
+	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::OR_CONST_REG_TO_REG:
+	jamDebug();
+	{
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Int64 Tright0= (Int64)(theInstruction >> 16);
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely(TleftType != NULL_INDICATOR))
+          {
+	    Uint64 Tdest0= Tleft0 | Tright0;
+	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::OR_REG_REG:
+	jamDebug();
+	{
+	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Uint32 TrightType= TregMemBuffer[TrightRegister];
+	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
+	  
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
+          {
+	    Uint64 Tdest0= Tleft0 | Tright0;
+	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::XOR_CONST_REG_TO_REG:
+	jamDebug();
+	{
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Int64 Tright0= (Int64)(theInstruction >> 16);
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely(TleftType != NULL_INDICATOR))
+          {
+	    Uint64 Tdest0= Tleft0 ^ Tright0;
+	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::XOR_REG_REG:
+	jamDebug();
+	{
+	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Uint32 TrightType= TregMemBuffer[TrightRegister];
+	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
+	  
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
+          {
+	    Uint64 Tdest0= Tleft0 ^ Tright0;
+	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::MOD_CONST_REG_TO_REG:
+	jamDebug();
+	{
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Int64 Tright0= (Int64)(theInstruction >> 16);
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely(TleftType != NULL_INDICATOR))
+          {
+            if (likely(Tright0 != 0))
+            {
+	      Uint64 Tdest0= Tleft0 % Tright0;
+	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+            }
+            else
+            {
+	      return TUPKEY_abort(req_struct, 42);
+            }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::MOD_REG_REG:
+	jamDebug();
+	{
+	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Uint32 TrightType= TregMemBuffer[TrightRegister];
+	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
+	  
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
+          {
+            if (likely(Tright0 != 0))
+            {
+	      Uint64 Tdest0= Tleft0 % Tright0;
+	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+            }
+            else
+            {
+	      return TUPKEY_abort(req_struct, 42);
+            }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 20);
+	  }
+	  break;
+	}
+
+      case Interpreter::NOT_REG_REG:
+	jamDebug();
+	{
+	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+         
+	  if (likely(TleftType != NULL_INDICATOR))
+          {
+	    Uint64 Tdest0= ~Tleft0;
+	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4387,7 +5356,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	break;
 
       case Interpreter::BRANCH_REG_EQ_NULL:
-	if (TregMemBuffer[theRegister] != 0)
+	if (TregMemBuffer[theRegister] != NULL_INDICATOR)
         {
 	  jamDebug();
 	  continue;
@@ -4400,7 +5369,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	break;
 
       case Interpreter::BRANCH_REG_NE_NULL:
-	if (TregMemBuffer[theRegister] == 0)
+	if (TregMemBuffer[theRegister] == NULL_INDICATOR)
         {
 	  jamDebug();
 	  continue;
@@ -4419,16 +5388,14 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
 
 	  Uint32 TleftType= TregMemBuffer[theRegister];
-	  Uint32 Tleft0= TregMemBuffer[theRegister + 2];
-	  Uint32 Tleft1= TregMemBuffer[theRegister + 3];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
 
 	  Uint32 TrightType= TregMemBuffer[TrightRegister];
-	  Uint32 Tright0= TregMemBuffer[TrightRegister + 2];
-	  Uint32 Tright1= TregMemBuffer[TrightRegister + 3];
-	  if ((TrightType | TleftType) != 0)
+	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
+	  if ((TrightType & TleftType) != NULL_INDICATOR)
           {
 	    jamDebug();
-	    if ((Tleft0 == Tright0) && (Tleft1 == Tright1))
+	    if (Tleft0 == Tright0)
             {
 	      TprogramCounter= brancher(theInstruction, TprogramCounter);
 	    }
@@ -4440,21 +5407,20 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  break;
 	}
 
+
       case Interpreter::BRANCH_NE_REG_REG:
 	{
 	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
 
 	  Uint32 TleftType= TregMemBuffer[theRegister];
-	  Uint32 Tleft0= TregMemBuffer[theRegister + 2];
-	  Uint32 Tleft1= TregMemBuffer[theRegister + 3];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
 
 	  Uint32 TrightType= TregMemBuffer[TrightRegister];
-	  Uint32 Tright0= TregMemBuffer[TrightRegister + 2];
-	  Uint32 Tright1= TregMemBuffer[TrightRegister + 3];
-	  if ((TrightType | TleftType) != 0)
+	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
+	  if ((TrightType & TleftType) != NULL_INDICATOR)
           {
 	    jamDebug();
-	    if ((Tleft0 != Tright0) || (Tleft1 != Tright1))
+	    if (Tleft0 != Tright0)
             {
 	      TprogramCounter= brancher(theInstruction, TprogramCounter);
 	    }
@@ -4475,9 +5441,8 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
-         
 
-	  if ((TrightType | TleftType) != 0)
+	  if ((TrightType & TleftType) != NULL_INDICATOR)
           {
 	    jamDebug();
 	    if (Tleft0 < Tright0)
@@ -4501,9 +5466,8 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
-	  
 
-	  if ((TrightType | TleftType) != 0)
+	  if ((TrightType & TleftType) != NULL_INDICATOR)
           {
 	    jamDebug();
 	    if (Tleft0 <= Tright0)
@@ -4527,9 +5491,8 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
-	  
 
-	  if ((TrightType | TleftType) != 0)
+	  if ((TrightType & TleftType) != NULL_INDICATOR)
           {
 	    jamDebug();
 	    if (Tleft0 > Tright0)
@@ -4554,7 +5517,140 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
 
-	  if ((TrightType | TleftType) != 0)
+	  if ((TrightType & TleftType) != NULL_INDICATOR)
+          {
+	    jamDebug();
+	    if (Tleft0 >= Tright0)
+            {
+	      TprogramCounter= brancher(theInstruction, TprogramCounter);
+	    }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 28);
+	  }
+	  break;
+	}
+
+      case (Interpreter::BRANCH_EQ_REG_REG + OVERFLOW_OPCODE):
+	{
+	  jamDebug();
+          Int64 Tright0 = Int64(((theInstruction >> 9) & 0x3F));
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+
+	  if (TleftType != NULL_INDICATOR)
+          {
+	    jamDebug();
+	    if (Tleft0 == Tright0)
+            {
+	      TprogramCounter= brancher(theInstruction, TprogramCounter);
+	    }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 23);
+	  }
+	  break;
+	}
+
+      case (Interpreter::BRANCH_NE_REG_REG + OVERFLOW_OPCODE):
+	{
+          Int64 Tright0 = Int64(((theInstruction >> 9) & 0x3F));
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+
+	  if (TleftType != NULL_INDICATOR)
+          {
+	    jamDebug();
+	    if (Tleft0 != Tright0)
+            {
+	      TprogramCounter= brancher(theInstruction, TprogramCounter);
+	    }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 24);
+	  }
+	  break;
+	}
+
+      case (Interpreter::BRANCH_LT_REG_REG + OVERFLOW_OPCODE):
+	{
+          Int64 Tright0 = Int64(((theInstruction >> 9) & 0x3F));
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+
+	  if (TleftType != NULL_INDICATOR)
+          {
+	    jamDebug();
+	    if (Tleft0 < Tright0)
+            {
+	      TprogramCounter= brancher(theInstruction, TprogramCounter);
+	    }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 24);
+	  }
+	  break;
+	}
+
+      case (Interpreter::BRANCH_LE_REG_REG + OVERFLOW_OPCODE):
+	{
+          Int64 Tright0 = Int64(((theInstruction >> 9) & 0x3F));
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+
+	  if (TleftType != NULL_INDICATOR)
+          {
+	    jamDebug();
+	    if (Tleft0 <= Tright0)
+            {
+	      TprogramCounter= brancher(theInstruction, TprogramCounter);
+	    }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 26);
+	  }
+	  break;
+	}
+
+      case (Interpreter::BRANCH_GT_REG_REG + OVERFLOW_OPCODE):
+	{
+          Int64 Tright0 = Int64(((theInstruction >> 9) & 0x3F));
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+
+	  if (TleftType != NULL_INDICATOR)
+          {
+	    jamDebug();
+	    if (Tleft0 > Tright0)
+            {
+	      TprogramCounter= brancher(theInstruction, TprogramCounter);
+	    }
+	  }
+          else
+          {
+	    return TUPKEY_abort(req_struct, 27);
+	  }
+	  break;
+	}
+
+      case (Interpreter::BRANCH_GE_REG_REG + OVERFLOW_OPCODE):
+	{
+          Int64 Tright0 = Int64(((theInstruction >> 9) & 0x3F));
+
+	  Uint32 TleftType= TregMemBuffer[theRegister];
+	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
+
+	  if (TleftType != NULL_INDICATOR)
           {
 	    jamDebug();
 	    if (Tleft0 >= Tright0)
@@ -4571,7 +5667,11 @@ int Dbtup::interpreterNextLab(Signal* signal,
 
       case Interpreter::BRANCH_ATTR_OP_ATTR:
       case Interpreter::BRANCH_ATTR_OP_PARAM:
-      case Interpreter::BRANCH_ATTR_OP_ARG:{
+      case Interpreter::BRANCH_ATTR_OP_ARG:
+      case (Interpreter::BRANCH_ATTR_OP_ATTR + OVERFLOW_OPCODE):
+      case (Interpreter::BRANCH_ATTR_OP_PARAM + OVERFLOW_OPCODE):
+      case (Interpreter::BRANCH_ATTR_OP_ARG + OVERFLOW_OPCODE):
+      {
         jamDebug();
         const Uint32 ins2 = TcurrentProgram[TprogramCounter];
         Uint32 attrId = Interpreter::getBranchCol_AttrId(ins2) << 16;
