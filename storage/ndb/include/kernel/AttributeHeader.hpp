@@ -123,6 +123,8 @@ public:
   /** Getters and Setters */
   Uint32  getAttributeId() const;
   void    setAttributeId(Uint32);
+  Uint32  getPartialReadFlag() const;
+  void    setPartialReadFlag();
   Uint32  getByteSize() const;
   void    setByteSize(Uint32);
   Uint32  getDataSize() const;   // In 32-bit words, rounded up
@@ -224,6 +226,18 @@ inline
 Uint32 AttributeHeader::getDataSize() const
 {
   return (((m_value & 0xFFFF) + 3) >> 2);
+}
+
+inline
+Uint32 AttributeHeader::getPartialReadFlag() const
+{
+  return (m_value & 1);
+}
+
+inline
+void AttributeHeader::setPartialReadFlag()
+{
+  m_value |=  1;
 }
 
 inline

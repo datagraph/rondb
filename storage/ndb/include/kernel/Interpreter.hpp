@@ -97,6 +97,23 @@ public:
   static constexpr Uint32 NOT_REG_REG = 35;
   static constexpr Uint32 MOD_REG_REG = 36;
 
+  static constexpr Uint32 ADD_CONST_REG_TO_REG = 37;
+  static constexpr Uint32 SUB_CONST_REG_TO_REG = 38;
+  static constexpr Uint32 LSHIFT_CONST_REG_TO_REG = 39;
+  static constexpr Uint32 RSHIFT_CONST_REG_TO_REG = 40;
+  static constexpr Uint32 MUL_CONST_REG_TO_REG = 41;
+  static constexpr Uint32 DIV_CONST_REG_TO_REG = 42;
+  static constexpr Uint32 AND_CONST_REG_TO_REG = 43;
+  static constexpr Uint32 OR_CONST_REG_TO_REG = 44;
+  static constexpr Uint32 XOR_CONST_REG_TO_REG = 45;
+  static constexpr Uint32 MOD_CONST_REG_TO_REG = 46;
+
+  static constexpr Uint32 READ_PARTIAL_ATTR_MEM = 47;
+  static constexpr Uint32 READ_UINT8_MEM_TO_REG = 48;
+  static constexpr Uint32 READ_UINT16_MEM_TO_REG = 49;
+  static constexpr Uint32 READ_UINT32_MEM_TO_REG = 50;
+  static constexpr Uint32 READ_INT64_MEM_TO_REG = 51;
+
   /**
    * Macros for creating code
    */

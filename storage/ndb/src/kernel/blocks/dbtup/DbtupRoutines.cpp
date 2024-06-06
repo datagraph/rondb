@@ -386,6 +386,7 @@ int Dbtup::readAttributes(KeyReqStruct *req_struct,
   inBufIndex= 0;
   req_struct->out_buf_index= 0;
   req_struct->out_buf_bits = 0;
+  req_struct->partial_read_size = 0;
   req_struct->max_read= 4*maxRead;
   req_struct->xfrm_flag= false;  // Only read of keys may transform
   Uint8*outBuffer = (Uint8*)outBuf;
@@ -414,6 +415,13 @@ int Dbtup::readAttributes(KeyReqStruct *req_struct,
       Uint64 attrDes = (Uint64(attrDes2) << 32) +
                         Uint64(attrDescriptor);
 
+      if (unlikely(ahIn.getPartialReadFlag() != 0))
+      {
+        Uint32 next_word = inBuffer[inBufIndex];
+        inBufIndex++;
+        req_struct->start_partial_read_pos = next_word & 0xFFFF;
+        req_struct->partial_read_size = next_word >> 16;
+      }
       ReadFunction f= regTabPtr->readFunctionArray[attributeId];
       thrjamLineDebug(req_struct->jamBuffer, attributeId);
       if (likely((*f)(outBuffer,
@@ -421,6 +429,12 @@ int Dbtup::readAttributes(KeyReqStruct *req_struct,
                       ahOut,
                       attrDes)))
       {
+
+        if (unlikely(req_struct->partial_read_size != 0))
+        {
+          thrjam(req_struct->jamBuffer);
+          return -(int)ZPARTIAL_READ_ERROR;
+        }
         continue;
       }
       else
@@ -450,6 +464,10 @@ int Dbtup::readAttributes(KeyReqStruct *req_struct,
       return -ZATTRIBUTE_ID_ERROR;
     }//if
   }//while
+  if (inBufIndex != inBufLen)
+  {
+    return -ZREAD_LENGTH_ERROR;
+  }
   thrjamDebug(req_struct->jamBuffer);
   return pad32(req_struct->out_buf_index, req_struct->out_buf_bits) >> 2;
 }
@@ -680,6 +698,23 @@ Dbtup::readFixedSizeTHManyWordNotNULL(Uint8* outBuffer,
     if (likely(newIndexBuf <= maxRead))
     {
       thrjamDebug(req_struct->jamBuffer);
+      if (unlikely(req_struct->partial_read_size != 0))
+      {
+        if (req_struct->start_partial_read_pos >= srcBytes)
+        {
+          srcBytes = 0;
+        }
+        else
+        {
+          dst += req_struct->start_partial_read_pos;
+          srcBytes -= req_struct->start_partial_read_pos;
+        }
+        if (req_struct->partial_read_size < srcBytes)
+        {
+          srcBytes = req_struct->partial_read_size;
+        }
+        req_struct->partial_read_size = 0;
+      }
       ahOut->setByteSize(srcBytes);
       memcpy(dst, src, srcBytes);
       zero32(dst, srcBytes);
@@ -869,6 +904,23 @@ Dbtup::varsize_reader(Uint8* outBuffer,
     {
       thrjamDebug(req_struct->jamBuffer);
       thrjamDataDebug(req_struct->jamBuffer, srcBytes);
+      if (unlikely(req_struct->partial_read_size != 0))
+      {
+        if (req_struct->start_partial_read_pos >= srcBytes)
+        {
+          srcBytes = 0;
+        }
+        else
+        {
+          dst += req_struct->start_partial_read_pos;
+          srcBytes -= req_struct->start_partial_read_pos;
+        }
+        if (req_struct->partial_read_size < srcBytes)
+        {
+          srcBytes = req_struct->partial_read_size;
+        }
+        req_struct->partial_read_size = 0;
+      }
       ah_out->setByteSize(srcBytes);
       memcpy(dst, srcPtr, srcBytes);
       zero32(dst, srcBytes);
@@ -901,7 +953,6 @@ Dbtup::varsize_reader(Uint8* outBuffer,
     thrjamDebug(req_struct->jamBuffer);
     return xfrm_reader(dst, req_struct, ah_out, attrDes, srcPtr, srcBytes);
   }
-  
   thrjam(req_struct->jamBuffer);
   req_struct->errorCode = ZTRY_TO_READ_TOO_MUCH_ERROR;
   return false;

@@ -161,13 +161,13 @@ inline const Uint32* ALIGN_WORD(const void* ptr)
 #define ZNOT_NULL_ATTR 840
 #define ZBAD_DEFAULT_VALUE_LEN 850
 #define ZNO_INSTRUCTION_ERROR 871
+#define ZREAD_LENGTH_ERROR 872
+#define ZPARTIAL_READ_ERROR 873
 #define ZOUTSIDE_OF_PROGRAM_ERROR 876
-#define ZSTORED_PROC_ID_ERROR 877
 #define ZREGISTER_INIT_ERROR 878
 #define ZATTRIBUTE_ID_ERROR 879
 #define ZTRY_TO_READ_TOO_MUCH_ERROR 880
 #define ZTOTAL_LEN_ERROR 882
-#define ZATTR_INTERPRETER_ERROR 883
 #define ZSTACK_OVERFLOW_ERROR 884
 #define ZSTACK_UNDERFLOW_ERROR 885
 #define ZTOO_MANY_INSTRUCTIONS_ERROR 886
@@ -181,7 +181,6 @@ inline const Uint32* ALIGN_WORD(const void* ptr)
 
 #define ZDYNAMIC_STORED_DISK_ERROR 801
 #define ZREAD_ONLY_CONSTRAINT_VIOLATION 893
-#define ZVAR_SIZED_NOT_SUPPORTED 894
 #define ZINCONSISTENT_NULL_ATTRIBUTE_COUNT 895
 #define ZTUPLE_CORRUPTED_ERROR 896
 #define ZTRY_UPDATE_PRIMARY_KEY 897
@@ -2023,6 +2022,7 @@ struct KeyReqStruct {
   Uint32          out_buf_bits;
   Uint32          in_buf_index;
 
+  Uint32          partial_read_size;
 
   union {
     Uint32 in_buf_len;
@@ -2035,6 +2035,8 @@ struct KeyReqStruct {
   bool is_expanded;
   bool m_is_lcp;
   enum When m_when;
+
+  Uint32          start_partial_read_pos;
 
 #ifdef ERROR_INSERT
   Uint32 instance_num;
