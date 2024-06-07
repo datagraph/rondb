@@ -799,6 +799,7 @@ Dbtup::readFixedSizeTHManyWordNULLable(Uint8* outBuffer,
   {
     thrjam(req_struct->jamBuffer);
     ahOut->setNULL();
+    req_struct->partial_read_size = 0;
     return true;
   }
 }
@@ -1105,6 +1106,7 @@ Dbtup::readVarSizeNULLable(Uint8* outBuffer,
   {
     thrjam(req_struct->jamBuffer);
     ahOut->setNULL();
+    req_struct->partial_read_size = 0;
     return true;
   }
 }
@@ -1197,6 +1199,7 @@ Dbtup::readDynFixedSizeExpandedNULLable(Uint8* outBuffer,
   {
     thrjamDebug(req_struct->jamBuffer);
     ahOut->setNULL();
+    req_struct->partial_read_size = 0;
     return true;
   }
 
@@ -1284,6 +1287,7 @@ Dbtup::readDynFixedSizeShrunkenNULLable(Uint8* outBuffer,
   {
     thrjamDebug(req_struct->jamBuffer);
     ahOut->setNULL();
+    req_struct->partial_read_size = 0;
     return true;
   }
 
@@ -1374,6 +1378,7 @@ Dbtup::readDynBigFixedSizeExpandedNULLable(Uint8* outBuffer,
   {
     thrjamDebug(req_struct->jamBuffer);
     ahOut->setNULL();
+    req_struct->partial_read_size = 0;
     return true;
   }
 
@@ -1454,6 +1459,7 @@ Dbtup::readDynBigFixedSizeShrunkenNULLable(Uint8* outBuffer,
   {
     thrjamDebug(req_struct->jamBuffer);
     ahOut->setNULL();
+    req_struct->partial_read_size = 0;
     return true;
   }
 
@@ -1676,6 +1682,7 @@ Dbtup::readDynVarSizeExpandedNULLable(Uint8* outBuffer,
   {
     thrjamDebug(req_struct->jamBuffer);
     ahOut->setNULL();
+    req_struct->partial_read_size = 0;
     return true;
   }
 
@@ -1755,6 +1762,7 @@ Dbtup::readDynVarSizeShrunkenNULLable(Uint8* outBuffer,
   {
     thrjamDebug(req_struct->jamBuffer);
     ahOut->setNULL();
+    req_struct->partial_read_size = 0;
     return true;
   }
 

@@ -108,11 +108,14 @@ public:
   static constexpr Uint32 XOR_CONST_REG_TO_REG = 45;
   static constexpr Uint32 MOD_CONST_REG_TO_REG = 46;
 
-  static constexpr Uint32 READ_PARTIAL_ATTR_MEM = 47;
-  static constexpr Uint32 READ_UINT8_MEM_TO_REG = 48;
-  static constexpr Uint32 READ_UINT16_MEM_TO_REG = 49;
-  static constexpr Uint32 READ_UINT32_MEM_TO_REG = 50;
-  static constexpr Uint32 READ_INT64_MEM_TO_REG = 51;
+  static constexpr Uint32 READ_PARTIAL_ATTR_TO_MEM = 47;
+  static constexpr Uint32 READ_ATTR_TO_MEM = 48;
+
+  static constexpr Uint32 READ_UINT8_MEM_TO_REG = 49;
+  static constexpr Uint32 READ_UINT16_MEM_TO_REG = 50;
+  static constexpr Uint32 READ_UINT32_MEM_TO_REG = 51;
+  static constexpr Uint32 READ_INT64_MEM_TO_REG = 52;
+  static constexpr Uint32 WRITE_REG_TO_MEM = 53;
 
   /**
    * Macros for creating code

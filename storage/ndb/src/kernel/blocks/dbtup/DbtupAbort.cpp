@@ -547,11 +547,19 @@ int Dbtup::TUPKEY_abort(KeyReqStruct * req_struct, int error_type)
     break;
   case 41:
     jam();
-    terrorCode = ZSHIFT_OVERFLOW_ERROR;
+    terrorCode = ZSHIFT_OPERAND_ERROR;
     break;
   case 42:
     jam();
     terrorCode = ZDIV_BY_ZERO_ERROR;
+    break;
+  case 43:
+    jam();
+    terrorCode = ZMEMORY_OFFSET_ERROR;
+    break;
+  case 44:
+    jam();
+    terrorCode = ZPARTIAL_READ_ERROR;
     break;
   default:
     ndbabort();

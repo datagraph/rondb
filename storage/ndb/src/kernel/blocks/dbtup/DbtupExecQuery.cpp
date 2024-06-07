@@ -4105,6 +4105,9 @@ Dbtup::lookupInterpreterParameter(Uint32 paramNo,
   return head;
 }
 
+#define HEAP_MEMORY_SIZE_DWORDS 8200
+#define NULL_INDICATOR 0
+#define NOT_NULL_INDICATOR 1
 int Dbtup::interpreterNextLab(Signal* signal,
                               KeyReqStruct* req_struct,
                               Uint32* logMemory,
@@ -4122,12 +4125,16 @@ int Dbtup::interpreterNextLab(Signal* signal,
   Uint32 TcurrentSize= TmainProgLen;
   Uint32 TdataWritten= 0;
   Uint32 RstackPtr= 0;
+  char *TheapMemoryChar;
   union {
     Uint32 TregMemBuffer[32];
     Uint64 align[16];
   };
   (void)align; // kill warning
   Uint32 TstackMemBuffer[32];
+  Uint64 TheapMemory[8200];
+
+  TheapMemoryChar = (char*)&TheapMemory[0];
 
   Uint32& RnoOfInstructions = req_struct->no_exec_instructions;
   ndbassert(RnoOfInstructions == 0);
@@ -4137,14 +4144,14 @@ int Dbtup::interpreterNextLab(Signal* signal,
   // They are handled as 64 bit values. Thus the 32 most significant
   // bits are zeroed for 32 bit values.
   /* ---------------------------------------------------------------- */
-  TregMemBuffer[0]= 0;
-  TregMemBuffer[4]= 0;
-  TregMemBuffer[8]= 0;
-  TregMemBuffer[12]= 0;
-  TregMemBuffer[16]= 0;
-  TregMemBuffer[20]= 0;
-  TregMemBuffer[24]= 0;
-  TregMemBuffer[28]= 0;
+  TregMemBuffer[0]= NULL_INDICATOR;
+  TregMemBuffer[4]= NULL_INDICATOR;
+  TregMemBuffer[8]= NULL_INDICATOR;
+  TregMemBuffer[12]= NULL_INDICATOR;
+  TregMemBuffer[16]= NULL_INDICATOR;
+  TregMemBuffer[20]= NULL_INDICATOR;
+  TregMemBuffer[24]= NULL_INDICATOR;
+  TregMemBuffer[28]= NULL_INDICATOR;
   Uint32 tmpHabitant= ~0;
 
   while (RnoOfInstructions < 8000) {
@@ -4173,7 +4180,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	// as long as it fits in the 64 bits of the register.
 	/* ---------------------------------------------------------------- */
 	{
-	  Uint32 theAttrinfo= theInstruction;
+	  Uint32 theAttrinfo= (theInstruction & 0xFFFF0000);
 	  int TnoDataRW= readAttributes(req_struct,
 				     &theAttrinfo,
 				     (Uint32)1,
@@ -4185,7 +4192,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             // Two words read means that we get the instruction plus one 32 
             // word read. Thus we set the register to be a 32 bit register.
             /* ------------------------------------------------------------- */
-            TregMemBuffer[theRegister]= 0x50;
+            TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
             // arithmetic conversion if big-endian
             * (Int64*)(TregMemBuffer+theRegister+2)= TregMemBuffer[theRegister+1];
           }
@@ -4195,7 +4202,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             // Three words read means that we get the instruction plus two 
             // 32 words read. Thus we set the register to be a 64 bit register.
             /* ------------------------------------------------------------- */
-            TregMemBuffer[theRegister]= 0x60;
+            TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
             TregMemBuffer[theRegister+3]= TregMemBuffer[theRegister+2];
             TregMemBuffer[theRegister+2]= TregMemBuffer[theRegister+1];
           }
@@ -4205,7 +4212,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             // One word read means that we must have read a NULL value. We set
             // the register to indicate a NULL value.
             /* ------------------------------------------------------------- */
-            TregMemBuffer[theRegister]= 0;
+            TregMemBuffer[theRegister]= NULL_INDICATOR;
             TregMemBuffer[theRegister + 2]= 0;
             TregMemBuffer[theRegister + 3]= 0;
           }
@@ -4303,39 +4310,188 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	    }
 	    break;
           }
-      case Interpreter::READ_PARTIAL_ATTR_MEM:
+      case Interpreter::READ_PARTIAL_ATTR_TO_MEM:
+      {
         jamDebug();
-        //TODO
+
+        Uint32 ToffsetType= TregMemBuffer[theRegister];
+        Int64 Toffset= * (Int64*)(TregMemBuffer + theRegister + 2);
+        if (unlikely(Toffset < 0 ||
+                     (Toffset > ((HEAP_MEMORY_SIZE_DWORDS * 8) -
+                      (MAX_TUPLE_SIZE_IN_WORDS * 4))) ||
+                     ((Toffset & 7) != 0)))
+        {
+          return TUPKEY_abort(req_struct, 43);
+        }
+        Uint32 memory_offset = Uint32(Toffset);
+        Uint32 TposRegister= Interpreter::getReg2(theInstruction) << 2;
+        Uint32 TsizeRegister= Interpreter::getReg3(theInstruction) << 2;
+        Uint32 TposType= TregMemBuffer[TposRegister];
+        Uint32 TsizeType= TregMemBuffer[TsizeRegister];
+        if (unlikely((ToffsetType == NULL_INDICATOR) ||
+                     (TposType == NULL_INDICATOR) ||
+                     (TsizeType == NULL_INDICATOR)))
+        {
+          return TUPKEY_abort(req_struct, 20);
+        }
+        Int64 Tpos= * (Int64*)(TregMemBuffer + TposRegister + 2);
+        if (unlikely(Tpos < 0 || Tpos >= (MAX_TUPLE_SIZE_IN_WORDS * 4)))
+        {
+          return TUPKEY_abort(req_struct, 44);
+        }
+        Uint32 read_pos = (Uint32)Tpos;
+        Int64 Tsize= * (Int64*)(TregMemBuffer + TsizeRegister + 2);
+        if (unlikely(Tsize < 0 || Tsize >= (MAX_TUPLE_SIZE_IN_WORDS * 4)))
+        {
+          return TUPKEY_abort(req_struct, 44);
+        }
+        Uint32 read_size = (Uint32)Tsize;
+        Uint32 TdestRegister= ((theInstruction >> 15) & 0x7) << 2;
+        Uint32 TattrId = theInstruction >> 18;
+        AttributeHeader ah(TattrId, 1); // 1 sets the partial read flag
+        Uint32 TdataForRead[2];
+        TdataForRead[0] = ah.m_value;
+        TdataForRead[1] = read_size | read_pos << 16;
+        int TnoDataRW= readAttributes(req_struct,
+                                     &TdataForRead[0],
+                                     (Uint32)2,
+                                     (Uint32*)&TheapMemoryChar[memory_offset],
+                                     (Uint32)MAX_TUPLE_SIZE_IN_WORDS);
+        if (TnoDataRW < 0)
+        {
+          jamDebug();
+          terrorCode = Uint32(-TnoDataRW);
+          tupkeyErrorLab(req_struct);
+          return -1;
+        }
+        Uint32 *memory_ptr = (Uint32*)&TheapMemoryChar[memory_offset];
+        Uint32 header = *memory_ptr;
+        AttributeHeader ah_read(header);
+        if (ah_read.isNULL())
+        {
+          TregMemBuffer[TdestRegister]= NULL_INDICATOR;
+        }
+        else
+        {
+          Uint32 read_len = ah_read.getByteSize();
+          * (Int64*)(TregMemBuffer+TdestRegister+2)= read_len;
+          TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+        }
+        break; 
+      }
+      case Interpreter::READ_ATTR_TO_MEM:
+      {
+        jamDebug();
+        Uint32 ToffsetType= TregMemBuffer[theRegister];
+        Int64 Toffset= * (Int64*)(TregMemBuffer + theRegister + 2);
+        if (unlikely((ToffsetType == 0)))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+        if (unlikely(Toffset < 0 ||
+                     (Toffset > ((HEAP_MEMORY_SIZE_DWORDS * 8) -
+                      (MAX_TUPLE_SIZE_IN_WORDS * 4))) ||
+                     ((Toffset & 7) != 0)))
+        {
+	  return TUPKEY_abort(req_struct, 43);
+        }
+        Uint32 memory_offset = Uint32(Toffset);
+	Uint32 TdestRegister= Interpreter::getReg2(theInstruction) << 2;
+        Uint32 TattrId = theInstruction >> 16;
+        Uint32 theAttrinfo = (TattrId << 16);
+        int TnoDataRW= readAttributes(req_struct,
+                                     &theAttrinfo,
+                                     (Uint32)1,
+                                     (Uint32*)&TheapMemoryChar[memory_offset],
+                                     (Uint32)MAX_TUPLE_SIZE_IN_WORDS);
+        if (TnoDataRW < 0)
+        {
+          jamDebug();
+          terrorCode = Uint32(-TnoDataRW);
+          tupkeyErrorLab(req_struct);
+          return -1;
+        }
+        Uint32 *memory_ptr = (Uint32*)&TheapMemoryChar[memory_offset];
+        Uint32 header = *memory_ptr;
+        AttributeHeader ah(header);
+        if (ah.isNULL())
+        {
+          TregMemBuffer[TdestRegister]= NULL_INDICATOR;
+        }
+        else
+        {
+          Uint32 read_len = ah.getByteSize();
+          * (Int64*)(TregMemBuffer+TdestRegister+2)= read_len;
+          TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
+        }
+        break;
+      }
       case Interpreter::READ_UINT8_MEM_TO_REG:
+      {
         jamDebug();
-        //TODO
+        Uint32 memory_offset = theInstruction >> 16;
+        Uint8 value = TheapMemoryChar[memory_offset];
+	* (Int64*)(TregMemBuffer+theRegister+2)= (Int64)value;
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
         break;
+      }
       case Interpreter::READ_UINT16_MEM_TO_REG:
+      {
         jamDebug();
-        //TODO
+        Uint32 memory_offset = theInstruction >> 16;
+        Uint16 value;
+        memcpy(&value, &TheapMemoryChar[memory_offset], 2);
+	* (Int64*)(TregMemBuffer+theRegister+2)= (Int64)value;
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
         break;
+      }
       case Interpreter::READ_UINT32_MEM_TO_REG:
+      {
         jamDebug();
-        //TODO
+        Uint32 memory_offset = theInstruction >> 16;
+        Uint32 value;
+        memcpy(&value, &TheapMemoryChar[memory_offset], 4);
+	* (Int64*)(TregMemBuffer+theRegister+2)= (Int64)value;
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
         break;
+      }
       case Interpreter::READ_INT64_MEM_TO_REG:
+      {
         jamDebug();
-        //TODO
+        Uint32 memory_offset = theInstruction >> 16;
+        Int64 value;
+        memcpy(&value, &TheapMemoryChar[memory_offset], 8);
+	* (Int64*)(TregMemBuffer+theRegister+2)= value;
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
         break;
+      }
+      case Interpreter::WRITE_REG_TO_MEM:
+      {
+        jamDebug();
+        Uint32 TregType= TregMemBuffer[theRegister];
+	if (unlikely(TregType == NULL_INDICATOR))
+        {
+	  return TUPKEY_abort(req_struct, 20);
+        }
+        Uint32 memory_offset = theInstruction >> 16;
+	Int64 Tvalue = * (Int64*)(TregMemBuffer+theRegister+2);
+        memcpy(&TheapMemoryChar[memory_offset], &Tvalue, 8);
+        break;
+      }
       case Interpreter::LOAD_CONST_NULL:
 	jamDebug();
-	TregMemBuffer[theRegister]= 0;	/* NULL INDICATOR */
+	TregMemBuffer[theRegister]= NULL_INDICATOR;
 	break;
 
       case Interpreter::LOAD_CONST16:
 	jamDebug();
-	TregMemBuffer[theRegister]= 0x50;	/* 32 BIT UNSIGNED CONSTANT */
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
 	* (Int64*)(TregMemBuffer+theRegister+2)= theInstruction >> 16;
 	break;
 
       case Interpreter::LOAD_CONST32:
 	jamDebug();
-	TregMemBuffer[theRegister]= 0x50;	/* 32 BIT UNSIGNED CONSTANT */
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
 	* (Int64*)(TregMemBuffer+theRegister+2)= * 
 	  (TcurrentProgram+TprogramCounter);
 	TprogramCounter++;
@@ -4343,7 +4499,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 
       case Interpreter::LOAD_CONST64:
 	jamDebug();
-	TregMemBuffer[theRegister]= 0x60;	/* 64 BIT UNSIGNED CONSTANT */
+	TregMemBuffer[theRegister]= NOT_NULL_INDICATOR;
         TregMemBuffer[theRegister + 2 ]= * (TcurrentProgram +
                                              TprogramCounter++);
         TregMemBuffer[theRegister + 3 ]= * (TcurrentProgram +
@@ -4364,7 +4520,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           {
 	    Uint64 Tdest0= Tleft0 + Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4389,7 +4545,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           {
 	    Uint64 Tdest0= Tleft0 + Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4412,7 +4568,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           {
 	    Uint64 Tdest0= Tleft0 - Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4437,7 +4593,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           {
 	    Int64 Tdest0= Tleft0 - Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4462,7 +4618,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             {
 	      Uint64 Tdest0= Tleft0 << Tright0;
 	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	      TregMemBuffer[TdestRegister]= 0x60;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
             }
             else
             {
@@ -4495,7 +4651,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             {
 	      Uint64 Tdest0= Tleft0 << Tright0;
 	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	      TregMemBuffer[TdestRegister]= 0x60;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
             }
             else
             {
@@ -4525,7 +4681,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             {
 	      Uint64 Tdest0= Tleft0 >> Tright0;
 	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	      TregMemBuffer[TdestRegister]= 0x60;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
             }
             else
             {
@@ -4558,7 +4714,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             {
 	      Uint64 Tdest0= Tleft0 >> Tright0;
 	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	      TregMemBuffer[TdestRegister]= 0x60;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
             }
             else
             {
@@ -4586,7 +4742,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           {
 	    Uint64 Tdest0= Tleft0 * Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4612,7 +4768,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           {
 	    Uint64 Tdest0= Tleft0 * Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4637,7 +4793,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             {
 	      Uint64 Tdest0= Tleft0 / Tright0;
 	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	      TregMemBuffer[TdestRegister]= 0x60;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
             }
             else
             {
@@ -4670,7 +4826,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             {
 	      Uint64 Tdest0= Tleft0 / Tright0;
 	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	      TregMemBuffer[TdestRegister]= 0x60;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
             }
             else
             {
@@ -4698,7 +4854,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           {
 	    Uint64 Tdest0= Tleft0 & Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4724,7 +4880,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           {
 	    Uint64 Tdest0= Tleft0 & Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4747,7 +4903,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           {
 	    Uint64 Tdest0= Tleft0 | Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4773,7 +4929,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           {
 	    Uint64 Tdest0= Tleft0 | Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4796,7 +4952,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           {
 	    Uint64 Tdest0= Tleft0 ^ Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4822,7 +4978,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           {
 	    Uint64 Tdest0= Tleft0 ^ Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
@@ -4847,7 +5003,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             {
 	      Uint64 Tdest0= Tleft0 % Tright0;
 	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	      TregMemBuffer[TdestRegister]= 0x60;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
             }
             else
             {
@@ -4880,7 +5036,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
             {
 	      Uint64 Tdest0= Tleft0 % Tright0;
 	      * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	      TregMemBuffer[TdestRegister]= 0x60;
+	      TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
             }
             else
             {
@@ -4906,7 +5062,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           {
 	    Uint64 Tdest0= ~Tleft0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
-	    TregMemBuffer[TdestRegister]= 0x60;
+	    TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 	  }
           else
           {
