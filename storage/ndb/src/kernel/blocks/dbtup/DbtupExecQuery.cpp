@@ -4516,7 +4516,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely(TleftType != 0))
+	  if (likely(TleftType != NULL_INDICATOR))
           {
 	    Uint64 Tdest0= Tleft0 + Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4541,7 +4541,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely((TleftType & TrightType) != 0))
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
           {
 	    Uint64 Tdest0= Tleft0 + Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4564,7 +4564,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely(TleftType != 0))
+	  if (likely(TleftType != NULL_INDICATOR))
           {
 	    Uint64 Tdest0= Tleft0 - Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4589,7 +4589,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely((TleftType & TrightType) != 0))
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
           {
 	    Int64 Tdest0= Tleft0 - Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4612,7 +4612,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely(TleftType != 0))
+	  if (likely(TleftType != NULL_INDICATOR))
           {
             if (likely(Tright0 <= 64 && Tright0 >= 0))
             {
@@ -4645,7 +4645,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely((TleftType & TrightType) != 0))
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
           {
             if (likely(Tright0 <= 64 && Tright0 >= 0))
             {
@@ -4675,7 +4675,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely(TleftType != 0))
+	  if (likely(TleftType != NULL_INDICATOR))
           {
             if (likely(Tright0 <= 64 && Tright0 >= 0))
             {
@@ -4708,7 +4708,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely((TleftType & TrightType) != 0))
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
           {
             if (likely(Tright0 <= 64 && Tright0 >= 0))
             {
@@ -4738,7 +4738,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely(TleftType != 0))
+	  if (likely(TleftType != NULL_INDICATOR))
           {
 	    Uint64 Tdest0= Tleft0 * Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4764,7 +4764,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely((TleftType & TrightType) != 0))
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
           {
 	    Uint64 Tdest0= Tleft0 * Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4787,7 +4787,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely(TleftType != 0))
+	  if (likely(TleftType != NULL_INDICATOR))
           {
             if (likely(Tright0 != 0))
             {
@@ -4820,7 +4820,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely((TleftType & TrightType) != 0))
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
           {
             if (likely(Tright0 != 0))
             {
@@ -4850,7 +4850,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely(TleftType != 0))
+	  if (likely(TleftType != NULL_INDICATOR))
           {
 	    Uint64 Tdest0= Tleft0 & Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4876,7 +4876,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely((TleftType & TrightType) != 0))
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
           {
 	    Uint64 Tdest0= Tleft0 & Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4899,7 +4899,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely(TleftType != 0))
+	  if (likely(TleftType != NULL_INDICATOR))
           {
 	    Uint64 Tdest0= Tleft0 | Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4925,7 +4925,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely((TleftType & TrightType) != 0))
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
           {
 	    Uint64 Tdest0= Tleft0 | Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4948,7 +4948,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely(TleftType != 0))
+	  if (likely(TleftType != NULL_INDICATOR))
           {
 	    Uint64 Tdest0= Tleft0 ^ Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4974,7 +4974,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely((TleftType & TrightType) != 0))
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
           {
 	    Uint64 Tdest0= Tleft0 ^ Tright0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
@@ -4997,7 +4997,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely(TleftType != 0))
+	  if (likely(TleftType != NULL_INDICATOR))
           {
             if (likely(Tright0 != 0))
             {
@@ -5030,7 +5030,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely((TleftType & TrightType) != 0))
+	  if (likely((TleftType & TrightType) != NULL_INDICATOR))
           {
             if (likely(Tright0 != 0))
             {
@@ -5058,7 +5058,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  Uint32 TleftType= TregMemBuffer[theRegister];
 	  Int64 Tleft0= * (Int64*)(TregMemBuffer + theRegister + 2);
          
-	  if (likely(TleftType != 0))
+	  if (likely(TleftType != NULL_INDICATOR))
           {
 	    Uint64 Tdest0= ~Tleft0;
 	    * (Int64*)(TregMemBuffer+TdestRegister+2)= Tdest0;
