@@ -46,6 +46,7 @@ public:
    * x = Register 1             -  3 Bits ( 6 - 8 ) max 7
    * y = Register 2             -  3 Bits ( 9 -11 ) max 7
    * z = Register 3             -  3 Bits ( 12 -14 ) max 7
+   * w = Register 4             -  3 Bits ( 16 -18 ) max 7
    * b = Branch offset (only branches)
    * b can also be constant, column id, ...
    *
@@ -120,8 +121,9 @@ public:
   /**
    * Macros for creating code
    */
-  static Uint32 Read(Uint32 AttrId, Uint32 Register);
-  static Uint32 Write(Uint32 AttrId, Uint32 Register);
+  static Uint32 Read(Uint32 AttrId, Uint32 RegDest);
+  static Uint32 ReadFull(Uint32 AttrId, Uint32 RegMemOffset, Uint32 RegDest);
+  static Uint32 Write(Uint32 AttrId, Uint32 RegSource);
   
   static Uint32 LoadNull(Uint32 Register);
   static Uint32 LoadConst16(Uint32 Register, Uint32 Value);
@@ -129,6 +131,25 @@ public:
   static Uint32 LoadConst64(Uint32 Register); // Value in next 2 words
   static Uint32 Add(Uint32 DstReg, Uint32 SrcReg1, Uint32 SrcReg2);
   static Uint32 Sub(Uint32 DstReg, Uint32 SrcReg1, Uint32 SrcReg2);
+  static Uint32 Lshift(Uint32 DstReg, Uint32 SrcReg1, Uint32 SrcReg2);
+  static Uint32 Rshift(Uint32 DstReg, Uint32 SrcReg1, Uint32 SrcReg2);
+  static Uint32 Mul(Uint32 DstReg, Uint32 SrcReg1, Uint32 SrcReg2);
+  static Uint32 Div(Uint32 DstReg, Uint32 SrcReg1, Uint32 SrcReg2);
+  static Uint32 And(Uint32 DstReg, Uint32 SrcReg1, Uint32 SrcReg2);
+  static Uint32 Or(Uint32 DstReg, Uint32 SrcReg1, Uint32 SrcReg2);
+  static Uint32 Xor(Uint32 DstReg, Uint32 SrcReg1, Uint32 SrcReg2);
+  static Uint32 Mod(Uint32 DstReg, Uint32 SrcReg1, Uint32 SrcReg2);
+  static Uint32 Not(Uint32 DstReg, Uint32 SrcReg1);
+  static Uint32 AddC(Uint32 DstReg, Uint32 SrcReg1, Uint16 Constant);
+  static Uint32 SubC(Uint32 DstReg, Uint32 SrcReg1, Uint16 Constant);
+  static Uint32 LshiftC(Uint32 DstReg, Uint32 SrcReg1, Uint16 Constant);
+  static Uint32 RshiftC(Uint32 DstReg, Uint32 SrcReg1, Uint16 Constant);
+  static Uint32 MulC(Uint32 DstReg, Uint32 SrcReg1, Uint16 Constant);
+  static Uint32 DivC(Uint32 DstReg, Uint32 SrcReg1, Uint16 Constant);
+  static Uint32 AndC(Uint32 DstReg, Uint32 SrcReg1, Uint16 Constant);
+  static Uint32 OrC(Uint32 DstReg, Uint32 SrcReg1, Uint16 Constant);
+  static Uint32 XorC(Uint32 DstReg, Uint32 SrcReg1, Uint16 Constant);
+  static Uint32 ModC(Uint32 DstReg, Uint32 SrcReg1, Uint16 Constant);
   static Uint32 Branch(Uint32 Inst, Uint32 Reg1, Uint32 Reg2);
   static Uint32 ExitOK();
   static Uint32 ExitLastOK();
@@ -236,6 +257,7 @@ public:
   static Uint32 getReg1(Uint32 op);
   static Uint32 getReg2(Uint32 op);
   static Uint32 getReg3(Uint32 op);
+  static Uint32 getReg4(Uint32 op);
   static Uint32 getLabel(Uint32 op);
 
   /**
@@ -260,6 +282,14 @@ inline
 Uint32
 Interpreter::Read(Uint32 AttrId, Uint32 Register){
   return (AttrId << 16) + (Register << 6) + READ_ATTR_INTO_REG;
+}
+
+inline
+Uint32
+Interpreter::ReadFull(Uint32 AttrId,
+                      Uint32 RegMemOffset,
+                      Uint32 RegDest){
+  return (AttrId << 16) + (RegMemOffset << 6) + (RegDest << 12) + READ_ATTR_TO_MEM;
 }
 
 inline
@@ -303,6 +333,121 @@ Uint32
 Interpreter::Sub(Uint32 Dcoleg, Uint32 SrcReg1, Uint32 SrcReg2){
   return (SrcReg1 << 6) + (SrcReg2 << 9) + (Dcoleg << 16) + SUB_REG_REG;
 }
+
+inline
+Uint32
+Interpreter::Lshift(Uint32 Dcoleg, Uint32 SrcReg1, Uint32 SrcReg2){
+  return (SrcReg1 << 6) + (SrcReg2 << 9) + (Dcoleg << 12) + LSHIFT_REG_REG;
+}
+
+inline
+Uint32
+Interpreter::Rshift(Uint32 Dcoleg, Uint32 SrcReg1, Uint32 SrcReg2){
+  return (SrcReg1 << 6) + (SrcReg2 << 9) + (Dcoleg << 12) + RSHIFT_REG_REG;
+}
+
+inline
+Uint32
+Interpreter::Mul(Uint32 Dcoleg, Uint32 SrcReg1, Uint32 SrcReg2){
+  return (SrcReg1 << 6) + (SrcReg2 << 9) + (Dcoleg << 12) + MUL_REG_REG;
+}
+
+inline
+Uint32
+Interpreter::Div(Uint32 Dcoleg, Uint32 SrcReg1, Uint32 SrcReg2){
+  return (SrcReg1 << 6) + (SrcReg2 << 9) + (Dcoleg << 12) + DIV_REG_REG;
+}
+
+inline
+Uint32
+Interpreter::And(Uint32 Dcoleg, Uint32 SrcReg1, Uint32 SrcReg2){
+  return (SrcReg1 << 6) + (SrcReg2 << 9) + (Dcoleg << 12) + AND_REG_REG;
+}
+
+inline
+Uint32
+Interpreter::Or(Uint32 Dcoleg, Uint32 SrcReg1, Uint32 SrcReg2){
+  return (SrcReg1 << 6) + (SrcReg2 << 9) + (Dcoleg << 12) + OR_REG_REG;
+}
+
+inline
+Uint32
+Interpreter::Xor(Uint32 Dcoleg, Uint32 SrcReg1, Uint32 SrcReg2){
+  return (SrcReg1 << 6) + (SrcReg2 << 9) + (Dcoleg << 12) + XOR_REG_REG;
+}
+
+inline
+Uint32
+Interpreter::Mod(Uint32 Dcoleg, Uint32 SrcReg1, Uint32 SrcReg2){
+  return (SrcReg1 << 6) + (SrcReg2 << 9) + (Dcoleg << 12) + MOD_REG_REG;
+}
+
+inline
+Uint32
+Interpreter::Not(Uint32 Dcoleg, Uint32 SrcReg1){
+  return (SrcReg1 << 6) + (Dcoleg << 12) + NOT_REG_REG;
+}
+
+inline
+Uint32
+Interpreter::AddC(Uint32 Dcoleg, Uint32 SrcReg1, Uint16 Constant){
+  return (SrcReg1 << 6) + (Dcoleg << 12) + (Constant << 16) + ADD_CONST_REG_TO_REG;
+}
+
+inline
+Uint32
+Interpreter::SubC(Uint32 Dcoleg, Uint32 SrcReg1, Uint16 Constant){
+  return (SrcReg1 << 6) + (Dcoleg << 12) + (Constant << 16) + SUB_CONST_REG_TO_REG;
+}
+
+inline
+Uint32
+Interpreter::LshiftC(Uint32 Dcoleg, Uint32 SrcReg1, Uint16 Constant){
+  return (SrcReg1 << 6) + (Dcoleg << 12) + (Constant << 16) + LSHIFT_CONST_REG_TO_REG;
+}
+
+inline
+Uint32
+Interpreter::RshiftC(Uint32 Dcoleg, Uint32 SrcReg1, Uint16 Constant){
+  return (SrcReg1 << 6) + (Dcoleg << 12) + (Constant << 16) + RSHIFT_CONST_REG_TO_REG;
+}
+
+inline
+Uint32
+Interpreter::MulC(Uint32 Dcoleg, Uint32 SrcReg1, Uint16 Constant){
+  return (SrcReg1 << 6) + (Dcoleg << 12) + (Constant << 16) + MUL_CONST_REG_TO_REG;
+}
+
+inline
+Uint32
+Interpreter::DivC(Uint32 Dcoleg, Uint32 SrcReg1, Uint16 Constant){
+  return (SrcReg1 << 6) + (Dcoleg << 12) + (Constant << 16) + DIV_CONST_REG_TO_REG;
+}
+
+inline
+Uint32
+Interpreter::AndC(Uint32 Dcoleg, Uint32 SrcReg1, Uint16 Constant){
+  return (SrcReg1 << 6) + (Dcoleg << 12) + (Constant << 16) + AND_CONST_REG_TO_REG;
+}
+
+inline
+Uint32
+Interpreter::OrC(Uint32 Dcoleg, Uint32 SrcReg1, Uint16 Constant){
+  return (SrcReg1 << 6) + (Dcoleg << 12) + (Constant << 16) + OR_CONST_REG_TO_REG;
+}
+
+inline
+Uint32
+Interpreter::XorC(Uint32 Dcoleg, Uint32 SrcReg1, Uint16 Constant){
+  return (SrcReg1 << 6) + (Dcoleg << 12) + (Constant << 16) + XOR_CONST_REG_TO_REG;
+}
+
+inline
+Uint32
+Interpreter::ModC(Uint32 Dcoleg, Uint32 SrcReg1, Uint16 Constant){
+  return (SrcReg1 << 6) + (Dcoleg << 12) + (Constant << 16) + MOD_CONST_REG_TO_REG;
+}
+
 
 inline
 Uint32
@@ -431,6 +576,12 @@ Interpreter::getReg2(Uint32 op){
 inline
 Uint32
 Interpreter::getReg3(Uint32 op){
+  return (op >> 12) & 0x7;
+}
+
+inline
+Uint32
+Interpreter::getReg4(Uint32 op){
   return (op >> 16) & 0x7;
 }
 

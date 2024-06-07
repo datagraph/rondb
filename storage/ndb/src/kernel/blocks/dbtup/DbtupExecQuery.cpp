@@ -4400,7 +4400,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  return TUPKEY_abort(req_struct, 43);
         }
         Uint32 memory_offset = Uint32(Toffset);
-	Uint32 TdestRegister= Interpreter::getReg2(theInstruction) << 2;
+	Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
         Uint32 TattrId = theInstruction >> 16;
         Uint32 theAttrinfo = (TattrId << 16);
         int TnoDataRW= readAttributes(req_struct,
@@ -4537,7 +4537,8 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	jamDebug();
 	{
 	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
-	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+          //Backwards compatability, use Reg4
+	  Uint32 TdestRegister= Interpreter::getReg4(theInstruction) << 2;
 
 	  Uint32 TrightType= TregMemBuffer[TrightRegister];
 	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);
@@ -4585,7 +4586,8 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	jamDebug();
 	{
 	  Uint32 TrightRegister= Interpreter::getReg2(theInstruction) << 2;
-	  Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
+          //Backwards compatability, use Reg4
+	  Uint32 TdestRegister= Interpreter::getReg4(theInstruction) << 2;
 
 	  Uint32 TrightType= TregMemBuffer[TrightRegister];
 	  Int64 Tright0= * (Int64*)(TregMemBuffer + TrightRegister + 2);

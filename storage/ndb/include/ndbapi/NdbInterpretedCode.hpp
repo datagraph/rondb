@@ -132,7 +132,26 @@ public:
    * and allow construction to start over again.
    */
   void reset();
-  
+
+  /* Register engine
+   * ---------------
+   * The register engine has access to 8 registers, these registers all
+   * store signed 64 bit integer values. At start of interpreter all
+   * registers are initialised to contain NULL values (thus value is
+   * undefined).
+   *
+   * The interpreter also have a heap memory of size 64 KByte. There
+   * are instructions to read full or partial columns into this heap
+   * memory and there are instructions to read from memory into a
+   * register and to write from registers to memory as well.
+   *
+   * There are numerous branch instructions that can be used based
+   * on the contents in registers.
+   *
+   * There are numerous arithmetic and logical operations that can be
+   * performed on the registers and they all operate on Int64 values.
+   */
+
   /* Register constant loads
    * -----------------------
    * These instructions allow numeric constants (and null)
@@ -162,9 +181,43 @@ public:
    * on was specified with the NdbInterpretedCode object
    * was constructed.
    *
+   * There is also two instructions to read partial or a full
+   * column into the interpreters heap memory. The destination
+   * register contains the read length, if column was NULL,
+   * the register will be NULL. These instructions are only
+   * intended to be used on arrays of binary data. The
+   * read_attr and write_attr can be used on integer data,
+   * but read_partial and read_full is intended to be operated
+   * on e.g. VARBINARY columns. This means it isn't intended
+   * for use with columns using character sets.
+   *
+   * The memory offset in memory must be smaller than the
+   * largest column that can be read and still fit within
+   * the heap memory, thus around 35000 currently. The
+   * memory offset is in bytes and must be a multiple of
+   * 8.
+   *
+   * Important notice is that when one reads a VARBINARY(255)
+   * the first byte of the column is the length byte. For
+   * a VARBINARY(256) and larger VARBINARY columns the first
+   * two bytes of the column are the length bytes using
+   * little endian format. This is true for variable sized
+   * binary arrays and not so for fixed size binary arrays
+   * (e.g. BINARY(256)).
+   *
+   * If one reads from position 128 with size 128 and the
+   * column only has a length of 96, the result will be
+   * ok with a read length of 0. If the column was 168
+   * bytes the result will be a read length of 40.
+   *
+   * If the size to read is set to 0, the full column
+   * will be read no matter what position is set.
+   *
    * Space required   Buffer    Request message
    *   read_attr      1 word    1 word
    *   write_attr     1 word    1 word
+   *   read_partial   1 word    1 word
+   *   read_full      1 word    1 word
    *
    * @param RegDest Register to load data into
    * @param attrId Table attribute to use
@@ -176,6 +229,22 @@ public:
   int read_attr(Uint32 RegDest, const NdbDictionary::Column *column);
   int write_attr(Uint32 attrId, Uint32 RegSource);
   int write_attr(const NdbDictionary::Column *column, Uint32 RegSource);
+  int read_partial(Uint32 attrId,
+                   Uint32 RegMemoryOffset,
+                   Uint32 RegSize,
+                   Uint32 RegPos,
+                   Uint32 RegDest);
+  int read_partial(const NdbDictionary::Column *column,
+                   Uint32 RegMemoryOffset,
+                   Uint32 RegSize,
+                   Uint32 RegPos,
+                   Uint32 RegDest);
+  int read_full(Uint32 attrId,
+                Uint32 RegMemoryOffset,
+                Uint32 RegDest);
+  int read_full(const NdbDictionary::Column *column,
+                Uint32 RegMemoryOffset,
+                Uint32 RegDest);
 
   /* Register arithmetic
    * -------------------
@@ -187,6 +256,17 @@ public:
    * Space required   Buffer    Request message
    *   add_reg        1 word    1 word
    *   sub_reg        1 word    1 word
+   *   lshift_reg     1 word    1 word
+   *   rshift_reg     1 word    1 word
+   *   mul_reg        1 word    1 word
+   *   div_reg        1 word    1 word
+   *   and_reg        1 word    1 word
+   *   or_reg         1 word    1 word
+   *   xor_reg        1 word    1 word
+   *   mod_reg        1 word    1 word
+   *
+   * *RegDest= <operator> *RegSouce1
+   *   not_reg        1 word    1 word
    *
    * @param RegDest Register to store operation result in
    * @param RegSource1 Register to use as LHS of operator
@@ -195,6 +275,88 @@ public:
    */
   int add_reg(Uint32 RegDest, Uint32 RegSource1, Uint32 RegSource2);
   int sub_reg(Uint32 RegDest, Uint32 RegSource1, Uint32 RegSource2);
+  int lshift_reg(Uint32 RegDest, Uint32 RegSource1, Uint32 RegSource2);
+  int rshift_reg(Uint32 RegDest, Uint32 RegSource1, Uint32 RegSource2);
+  int mul_reg(Uint32 RegDest, Uint32 RegSource1, Uint32 RegSource2);
+  int div_reg(Uint32 RegDest, Uint32 RegSource1, Uint32 RegSource2);
+  int and_reg(Uint32 RegDest, Uint32 RegSource1, Uint32 RegSource2);
+  int or_reg(Uint32 RegDest, Uint32 RegSource1, Uint32 RegSource2);
+  int xor_reg(Uint32 RegDest, Uint32 RegSource1, Uint32 RegSource2);
+  int mod_reg(Uint32 RegDest, Uint32 RegSource1, Uint32 RegSource2);
+  int not_reg(Uint32 RegDest, Uint32 RegSource1);
+
+  /* Register arithmetic
+   * -------------------
+   * These instructions provide arithmetic operations on the
+   * interpreter's registers. They have the same use as the
+   * one with two source registers except that they use a
+   * constant as the second part of the operation.
+   *
+   * *RegDest= *RegSouce1 <operator> *Constant
+   *
+   * Space required   Buffer    Request message
+   *   add_const_reg  1 word    1 word
+   *   sub_const_reg  1 word    1 word
+   *   lshift_const_reg 1 word  1 word
+   *   rshift_const_reg 1 word  1 word
+   *   mul_const_reg  1 word    1 word
+   *   div_const_reg  1 word    1 word
+   *   and_const_reg  1 word    1 word
+   *   or_const_reg   1 word    1 word
+   *   xor_const_reg  1 word    1 word
+   *   mod_const_reg  1 word    1 word
+   *
+   * @param RegDest Register to store operation result in
+   * @param RegSource1 Register to use as LHS of operator
+   * @param Constant to use as RHS of operator
+   * @return 0 if successful, -1 otherwise
+   */
+  int add_const_reg(Uint32 RegDest, Uint32 RegSource1, Uint16 Constant);
+  int sub_const_reg(Uint32 RegDest, Uint32 RegSource1, Uint16 Constant);
+  int lshift_const_reg(Uint32 RegDest, Uint32 RegSource1, Uint16 Constant);
+  int rshift_const_reg(Uint32 RegDest, Uint32 RegSource1, Uint16 Constant);
+  int mul_const_reg(Uint32 RegDest, Uint32 RegSource1, Uint16 Constant);
+  int div_const_reg(Uint32 RegDest, Uint32 RegSource1, Uint16 Constant);
+  int and_const_reg(Uint32 RegDest, Uint32 RegSource1, Uint16 Constant);
+  int or_const_reg(Uint32 RegDest, Uint32 RegSource1, Uint16 Constant);
+  int xor_const_reg(Uint32 RegDest, Uint32 RegSource1, Uint16 Constant);
+  int mod_const_reg(Uint32 RegDest, Uint32 RegSource1, Uint16 Constant);
+
+  /* Move from heap memory to register
+   * ---------------------------------
+   * These instructions provide possibilities to read the memory
+   * inserted from reads of columns and load it into registers.
+   * One can read 1 byte treated as an Uint8, 2 bytes treated as
+   * Uint16, 4 bytes treated as Uint32 and 8 bytes treated as
+   * Int64.
+   *
+   * *RegDest= *RegSouce1 <operator> *Constant
+   *
+   * Space required   Buffer    Request message
+   *   read_u8_to_reg 1 word    1 word
+   *   read_u16_to_reg 1 word   1 word
+   *   read_u32_to_reg 1 word   1 word
+   *   read_int64_to_reg 1 word 1 word
+   *
+   * @param RegDest Register to store operation result in
+   * @param RegSource1 Register to use as LHS of operator
+   * @param Constant to use as RHS of operator
+   * @return 0 if successful, -1 otherwise
+   */
+  int read_u8_to_reg(Uint32 RegDest, Uint32 memory_offset);
+  int read_u16_to_reg(Uint32 RegDest, Uint32 memory_offset);
+  int read_u32_to_reg(Uint32 RegDest, Uint32 memory_offset);
+  int read_int64_to_reg(Uint32 RegDest, Uint32 memory_offset);
+
+  /* Move from register to heap memory
+   * ---------------------------------
+   * This instruction provides the option to spill registers to memory
+   * when so required.
+   *
+   * Space required   Buffer    Request message
+   *   write_reg_to_mem 1 word  1 word
+   */
+  int write_reg_to_mem(Uint32 RegSource, Uint32 memory_offset);
 
   /* Control flow 
    * ------------
@@ -775,6 +937,9 @@ private:
 
   int add_branch(Uint32 instruction, Uint32 label);
   int read_attr_impl(const NdbColumnImpl *c, Uint32 RegDest);
+  int read_full_impl(const NdbColumnImpl *c,
+                     Uint32 RegMemOffset,
+                     Uint32 RegDest);
   int write_attr_impl(const NdbColumnImpl *c, Uint32 RegSource);
   int branch_col_val(Uint32 branch_type, Uint32 attrId, const void * val,
                      Uint32 len, Uint32 label);

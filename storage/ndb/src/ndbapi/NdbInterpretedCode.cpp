@@ -282,6 +282,167 @@ NdbInterpretedCode::sub_reg(Uint32 RegDest,
 }
 
 int
+NdbInterpretedCode::lshift_reg(Uint32 RegDest,
+                               Uint32 RegSource1, Uint32 RegSource2)
+{
+  return add1(Interpreter::Lshift(RegDest % MaxReg, RegSource1 % MaxReg,
+                                  RegSource2 % MaxReg));
+}
+
+int
+NdbInterpretedCode::rshift_reg(Uint32 RegDest,
+                               Uint32 RegSource1, Uint32 RegSource2)
+{
+  return add1(Interpreter::Rshift(RegDest % MaxReg, RegSource1 % MaxReg,
+                                  RegSource2 % MaxReg));
+}
+
+int
+NdbInterpretedCode::mul_reg(Uint32 RegDest,
+                            Uint32 RegSource1, Uint32 RegSource2)
+{
+  return add1(Interpreter::Mul(RegDest % MaxReg, RegSource1 % MaxReg,
+                               RegSource2 % MaxReg));
+}
+
+int
+NdbInterpretedCode::div_reg(Uint32 RegDest,
+                            Uint32 RegSource1, Uint32 RegSource2)
+{
+  return add1(Interpreter::Div(RegDest % MaxReg, RegSource1 % MaxReg,
+                               RegSource2 % MaxReg));
+}
+
+int
+NdbInterpretedCode::and_reg(Uint32 RegDest,
+                            Uint32 RegSource1, Uint32 RegSource2)
+{
+  return add1(Interpreter::And(RegDest % MaxReg, RegSource1 % MaxReg,
+                               RegSource2 % MaxReg));
+}
+
+int
+NdbInterpretedCode::or_reg(Uint32 RegDest,
+                           Uint32 RegSource1, Uint32 RegSource2)
+{
+  return add1(Interpreter::Or(RegDest % MaxReg, RegSource1 % MaxReg,
+                              RegSource2 % MaxReg));
+}
+
+int
+NdbInterpretedCode::xor_reg(Uint32 RegDest,
+                            Uint32 RegSource1, Uint32 RegSource2)
+{
+  return add1(Interpreter::Xor(RegDest % MaxReg, RegSource1 % MaxReg,
+                               RegSource2 % MaxReg));
+}
+
+int
+NdbInterpretedCode::mod_reg(Uint32 RegDest,
+                            Uint32 RegSource1, Uint32 RegSource2)
+{
+  return add1(Interpreter::Mod(RegDest % MaxReg, RegSource1 % MaxReg,
+                               RegSource2 % MaxReg));
+}
+
+int
+NdbInterpretedCode::not_reg(Uint32 RegDest,
+                            Uint32 RegSource1)
+{
+  return add1(Interpreter::Not(RegDest % MaxReg, RegSource1 % MaxReg));
+}
+
+int
+NdbInterpretedCode::add_const_reg(Uint32 RegDest, 
+                                  Uint32 RegSource1,
+                                  Uint16 Constant)
+{
+  return add1(Interpreter::AddC(RegDest % MaxReg, RegSource1 % MaxReg,
+                                Constant));
+}
+
+int
+NdbInterpretedCode::sub_const_reg(Uint32 RegDest,
+                                  Uint32 RegSource1,
+                                  Uint16 Constant)
+{
+  return add1(Interpreter::SubC(RegDest % MaxReg, RegSource1 % MaxReg,
+                                Constant));
+}
+
+int
+NdbInterpretedCode::lshift_const_reg(Uint32 RegDest,
+                                     Uint32 RegSource1,
+                                     Uint16 Constant)
+{
+  return add1(Interpreter::LshiftC(RegDest % MaxReg, RegSource1 % MaxReg,
+                                   Constant));
+}
+
+int
+NdbInterpretedCode::rshift_const_reg(Uint32 RegDest,
+                                     Uint32 RegSource1,
+                                     Uint16 Constant)
+{
+  return add1(Interpreter::RshiftC(RegDest % MaxReg, RegSource1 % MaxReg,
+                                   Constant));
+}
+
+int
+NdbInterpretedCode::mul_const_reg(Uint32 RegDest,
+                                  Uint32 RegSource1,
+                                  Uint16 Constant)
+{
+  return add1(Interpreter::MulC(RegDest % MaxReg, RegSource1 % MaxReg,
+                                Constant));
+}
+
+int
+NdbInterpretedCode::div_const_reg(Uint32 RegDest,
+                                  Uint32 RegSource1,
+                                  Uint16 Constant)
+{
+  return add1(Interpreter::DivC(RegDest % MaxReg, RegSource1 % MaxReg,
+                                Constant));
+}
+
+int
+NdbInterpretedCode::and_const_reg(Uint32 RegDest,
+                                  Uint32 RegSource1,
+                                  Uint16 Constant)
+{
+  return add1(Interpreter::AndC(RegDest % MaxReg, RegSource1 % MaxReg,
+                                Constant));
+}
+
+int
+NdbInterpretedCode::or_const_reg(Uint32 RegDest,
+                                 Uint32 RegSource1,
+                                 Uint16 Constant)
+{
+  return add1(Interpreter::OrC(RegDest % MaxReg, RegSource1 % MaxReg,
+                               Constant));
+}
+
+int
+NdbInterpretedCode::xor_const_reg(Uint32 RegDest,
+                                  Uint32 RegSource1,
+                                  Uint16 Constant)
+{
+  return add1(Interpreter::XorC(RegDest % MaxReg, RegSource1 % MaxReg,
+                                Constant));
+}
+
+int
+NdbInterpretedCode::mod_const_reg(Uint32 RegDest,
+                                  Uint32 RegSource1,
+                                  Uint16 Constant)
+{
+  return add1(Interpreter::ModC(RegDest % MaxReg, RegSource1 % MaxReg,
+                                Constant));
+}
+
+int
 NdbInterpretedCode::load_const_u32(Uint32 RegDest, Uint32 Constant)
 {
   return add2(Interpreter::LoadConst32(RegDest % MaxReg), Constant);
@@ -316,6 +477,48 @@ NdbInterpretedCode::read_attr_impl(const NdbColumnImpl *c, Uint32 RegDest)
   if (c->m_storageType == NDB_STORAGETYPE_DISK)
     m_flags|= UsesDisk;
   return add1(Interpreter::Read(c->m_attrId, RegDest % MaxReg));
+}
+
+int
+NdbInterpretedCode::read_full_impl(const NdbColumnImpl *c,
+                                   Uint32 RegMemoryOffset,
+                                   Uint32 RegDest)
+{
+  if (c->m_storageType == NDB_STORAGETYPE_DISK)
+    m_flags|= UsesDisk;
+  return add1(Interpreter::ReadFull(c->m_attrId,
+                                    RegMemoryOffset % MaxReg,
+                                    RegDest % MaxReg));
+}
+
+int
+NdbInterpretedCode::read_full(Uint32 attrId,
+                              Uint32 RegMemoryOffset,
+                              Uint32 RegDest)
+{
+  if (unlikely(m_table_impl == nullptr))
+    /* NdbInterpretedCode instruction requires that table is set */
+    return error(4538);
+  const NdbColumnImpl *c= m_table_impl->getColumn(attrId);
+  if (unlikely(c == nullptr))
+    return error(BadAttributeId);
+  return read_full_impl(c,
+                        RegMemoryOffset,
+                        RegDest);
+}
+
+int
+NdbInterpretedCode::read_full(const NdbDictionary::Column *column,
+                              Uint32 RegMemOffset,
+                              Uint32 RegDest)
+{
+  if (unlikely(m_table_impl == nullptr))
+    /* NdbInterpretedCode instruction requires that table is set */
+    return error(4538);
+  // TODO : Check column is from the correct table
+  return read_full_impl(&NdbColumnImpl::getImpl(*column),
+                        RegMemOffset,
+                        RegDest);
 }
 
 int
