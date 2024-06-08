@@ -343,10 +343,10 @@ public:
    * @param Constant to use as RHS of operator
    * @return 0 if successful, -1 otherwise
    */
-  int read_u8_to_reg(Uint32 RegDest, Uint32 memory_offset);
-  int read_u16_to_reg(Uint32 RegDest, Uint32 memory_offset);
-  int read_u32_to_reg(Uint32 RegDest, Uint32 memory_offset);
-  int read_int64_to_reg(Uint32 RegDest, Uint32 memory_offset);
+  int read_u8_to_reg(Uint32 RegDest, Uint16 memory_offset);
+  int read_u16_to_reg(Uint32 RegDest, Uint16 memory_offset);
+  int read_u32_to_reg(Uint32 RegDest, Uint16 memory_offset);
+  int read_int64_to_reg(Uint32 RegDest, Uint16 memory_offset);
 
   /* Move from register to heap memory
    * ---------------------------------
@@ -356,7 +356,7 @@ public:
    * Space required   Buffer    Request message
    *   write_reg_to_mem 1 word  1 word
    */
-  int write_reg_to_mem(Uint32 RegSource, Uint32 memory_offset);
+  int write_reg_to_mem(Uint32 RegSource, Uint16 memory_offset);
 
   /* Control flow 
    * ------------
@@ -940,6 +940,11 @@ private:
   int read_full_impl(const NdbColumnImpl *c,
                      Uint32 RegMemOffset,
                      Uint32 RegDest);
+  int read_partial_impl(const NdbColumnImpl *c,
+                        Uint32 RegMemOffset,
+                        Uint32 RegPos,
+                        Uint32 RegSize,
+                        Uint32 RegDest);
   int write_attr_impl(const NdbColumnImpl *c, Uint32 RegSource);
   int branch_col_val(Uint32 branch_type, Uint32 attrId, const void * val,
                      Uint32 len, Uint32 label);

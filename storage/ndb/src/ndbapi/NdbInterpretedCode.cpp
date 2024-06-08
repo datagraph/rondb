@@ -443,6 +443,51 @@ NdbInterpretedCode::mod_const_reg(Uint32 RegDest,
 }
 
 int
+NdbInterpretedCode::read_u8_to_reg(Uint32 RegDest,
+                                   Uint16 Constant)
+{
+  return add1(Interpreter::ReadU8FromMemIntoReg(
+              RegDest % MaxReg,
+              Constant));
+}
+
+int
+NdbInterpretedCode::read_u16_to_reg(Uint32 RegDest,
+                                    Uint16 Constant)
+{
+  return add1(Interpreter::ReadU16FromMemIntoReg(
+              RegDest % MaxReg,
+              Constant));
+}
+
+int
+NdbInterpretedCode::read_u32_to_reg(Uint32 RegDest,
+                                    Uint16 Constant)
+{
+  return add1(Interpreter::ReadU32FromMemIntoReg(
+              RegDest % MaxReg,
+              Constant));
+}
+
+int
+NdbInterpretedCode::read_int64_to_reg(Uint32 RegDest,
+                                      Uint16 Constant)
+{
+  return add1(Interpreter::ReadInt64FromMemIntoReg(
+              RegDest % MaxReg,
+              Constant));
+}
+
+int
+NdbInterpretedCode::write_reg_to_mem(Uint32 RegSource,
+                                     Uint16 Constant)
+{
+  return add1(Interpreter::WriteRegIntoMem(
+              RegSource % MaxReg,
+              Constant));
+}
+
+int
 NdbInterpretedCode::load_const_u32(Uint32 RegDest, Uint32 Constant)
 {
   return add2(Interpreter::LoadConst32(RegDest % MaxReg), Constant);
@@ -477,6 +522,60 @@ NdbInterpretedCode::read_attr_impl(const NdbColumnImpl *c, Uint32 RegDest)
   if (c->m_storageType == NDB_STORAGETYPE_DISK)
     m_flags|= UsesDisk;
   return add1(Interpreter::Read(c->m_attrId, RegDest % MaxReg));
+}
+
+int
+NdbInterpretedCode::read_partial_impl(const NdbColumnImpl *c,
+                                      Uint32 RegMemoryOffset,
+                                      Uint32 RegPos,
+                                      Uint32 RegSize,
+                                      Uint32 RegDest)
+{
+  if (c->m_storageType == NDB_STORAGETYPE_DISK)
+    m_flags|= UsesDisk;
+  return add1(Interpreter::ReadPartial(c->m_attrId,
+                                       RegMemoryOffset % MaxReg,
+                                       RegPos % MaxReg,
+                                       RegSize % MaxReg,
+                                       RegDest % MaxReg));
+}
+
+int
+NdbInterpretedCode::read_partial(Uint32 attrId,
+                                 Uint32 RegMemoryOffset,
+                                 Uint32 RegPos,
+                                 Uint32 RegSize,
+                                 Uint32 RegDest)
+{
+  if (unlikely(m_table_impl == nullptr))
+    /* NdbInterpretedCode instruction requires that table is set */
+    return error(4538);
+  const NdbColumnImpl *c= m_table_impl->getColumn(attrId);
+  if (unlikely(c == nullptr))
+    return error(BadAttributeId);
+  return read_partial_impl(c,
+                           RegMemoryOffset,
+                           RegPos,
+                           RegSize,
+                           RegDest);
+}
+
+int
+NdbInterpretedCode::read_partial(const NdbDictionary::Column *column,
+                                 Uint32 RegMemOffset,
+                                 Uint32 RegPos,
+                                 Uint32 RegSize,
+                                 Uint32 RegDest)
+{
+  if (unlikely(m_table_impl == nullptr))
+    /* NdbInterpretedCode instruction requires that table is set */
+    return error(4538);
+  // TODO : Check column is from the correct table
+  return read_partial_impl(&NdbColumnImpl::getImpl(*column),
+                           RegMemOffset,
+                           RegPos,
+                           RegSize,
+                           RegDest);
 }
 
 int

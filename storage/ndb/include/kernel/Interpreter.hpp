@@ -123,6 +123,11 @@ public:
    */
   static Uint32 Read(Uint32 AttrId, Uint32 RegDest);
   static Uint32 ReadFull(Uint32 AttrId, Uint32 RegMemOffset, Uint32 RegDest);
+  static Uint32 ReadPartial(Uint32 AttrId,
+                            Uint32 RegMemOffset,
+                            Uint32 RegPos,
+                            Uint32 RegSize,
+                            Uint32 RegDest);
   static Uint32 Write(Uint32 AttrId, Uint32 RegSource);
   
   static Uint32 LoadNull(Uint32 Register);
@@ -150,6 +155,11 @@ public:
   static Uint32 OrC(Uint32 DstReg, Uint32 SrcReg1, Uint16 Constant);
   static Uint32 XorC(Uint32 DstReg, Uint32 SrcReg1, Uint16 Constant);
   static Uint32 ModC(Uint32 DstReg, Uint32 SrcReg1, Uint16 Constant);
+  static Uint32 ReadU8FromMemIntoReg(Uint32 DstReg, Uint16 Constant);
+  static Uint32 ReadU16FromMemIntoReg(Uint32 DstReg, Uint16 Constant);
+  static Uint32 ReadU32FromMemIntoReg(Uint32 DstReg, Uint16 Constant);
+  static Uint32 ReadInt64FromMemIntoReg(Uint32 DstReg, Uint16 Constant);
+  static Uint32 WriteRegIntoMem(Uint32 SrcReg, Uint16 Constant);
   static Uint32 Branch(Uint32 Inst, Uint32 Reg1, Uint32 Reg2);
   static Uint32 ExitOK();
   static Uint32 ExitLastOK();
@@ -290,6 +300,20 @@ Interpreter::ReadFull(Uint32 AttrId,
                       Uint32 RegMemOffset,
                       Uint32 RegDest){
   return (AttrId << 16) + (RegMemOffset << 6) + (RegDest << 12) + READ_ATTR_TO_MEM;
+}
+
+inline
+Uint32
+Interpreter::ReadPartial(Uint32 AttrId,
+                         Uint32 RegMemOffset,
+                         Uint32 RegPos,
+                         Uint32 RegSize,
+                         Uint32 RegDest){
+  return (AttrId << 16) +
+         (RegMemOffset << 6) +
+         (RegPos << 9) +
+         (RegSize << 15) +
+         (RegDest << 12) + READ_PARTIAL_ATTR_TO_MEM;
 }
 
 inline
@@ -448,6 +472,35 @@ Interpreter::ModC(Uint32 Dcoleg, Uint32 SrcReg1, Uint16 Constant){
   return (SrcReg1 << 6) + (Dcoleg << 12) + (Constant << 16) + MOD_CONST_REG_TO_REG;
 }
 
+inline
+Uint32
+Interpreter::ReadU8FromMemIntoReg(Uint32 Dcoleg, Uint16 Constant){
+  return (Dcoleg << 6) + (Constant << 16) + READ_UINT8_MEM_TO_REG;
+}
+
+inline
+Uint32
+Interpreter::ReadU16FromMemIntoReg(Uint32 Dcoleg, Uint16 Constant){
+  return (Dcoleg << 6) + (Constant << 16) + READ_UINT16_MEM_TO_REG;
+}
+
+inline
+Uint32
+Interpreter::ReadU32FromMemIntoReg(Uint32 Dcoleg, Uint16 Constant){
+  return (Dcoleg << 6) + (Constant << 16) + READ_UINT32_MEM_TO_REG;
+}
+
+inline
+Uint32
+Interpreter::ReadInt64FromMemIntoReg(Uint32 Dcoleg, Uint16 Constant){
+  return (Dcoleg << 6) + (Constant << 16) + READ_INT64_MEM_TO_REG;
+}
+
+inline
+Uint32
+Interpreter::WriteRegIntoMem(Uint32 SrcReg, Uint16 Constant){
+  return (SrcReg << 6) + (Constant << 16) + WRITE_REG_TO_MEM;
+}
 
 inline
 Uint32
