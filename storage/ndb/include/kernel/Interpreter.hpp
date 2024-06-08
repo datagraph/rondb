@@ -669,6 +669,32 @@ Interpreter::getInstructionPreProcessingInfo(Uint32 *op,
     return op + 3;
   case ADD_REG_REG:
   case SUB_REG_REG:
+  case LSHIFT_REG_REG:
+  case RSHIFT_REG_REG:
+  case MUL_REG_REG:
+  case DIV_REG_REG:
+  case AND_REG_REG:
+  case OR_REG_REG:
+  case XOR_REG_REG:
+  case MOD_REG_REG:
+  case NOT_REG_REG:
+  case ADD_CONST_REG_TO_REG:
+  case SUB_CONST_REG_TO_REG:
+  case LSHIFT_CONST_REG_TO_REG:
+  case RSHIFT_CONST_REG_TO_REG:
+  case MUL_CONST_REG_TO_REG:
+  case DIV_CONST_REG_TO_REG:
+  case AND_CONST_REG_TO_REG:
+  case OR_CONST_REG_TO_REG:
+  case XOR_CONST_REG_TO_REG:
+  case MOD_CONST_REG_TO_REG:
+  case READ_PARTIAL_ATTR_TO_MEM:
+  case READ_ATTR_TO_MEM:
+  case READ_UINT8_MEM_TO_REG:
+  case READ_UINT16_MEM_TO_REG:
+  case READ_UINT32_MEM_TO_REG:
+  case READ_INT64_MEM_TO_REG:
+  case WRITE_REG_TO_MEM:
     return op + 1;
   case BRANCH:
   case BRANCH_REG_EQ_NULL:

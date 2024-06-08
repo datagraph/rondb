@@ -49,6 +49,13 @@
     pTrans->close();                               \
     return NDBT_FAILED; }
 
+#define CHK3(x) if (x != 0) {                  \
+    ndbout_c("Failed on line: %u.  Error %u",  \
+             __LINE__, x);                         \
+    pTrans->close();                               \
+    return NDBT_FAILED; }
+
+
 int runClearTable(NDBT_Context* ctx, NDBT_Step* step){
   int records = ctx->getNumRecords();
   int batchSize = ctx->getProperty("BatchSize", 1);
@@ -549,6 +556,143 @@ createPkIndex_Drop(NDBT_Context* ctx, NDBT_Step* step)
     }
   }
 
+  return NDBT_OK;
+}
+
+int
+runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
+{
+  const NdbDictionary::Table * pTab = ctx->getTab();
+  Ndb* pNdb = GETNDB(step);
+  NdbDictionary::Dictionary * dict = pNdb->getDictionary();
+
+  /**
+   * Get default record to use for Insert operation.
+   * Next get primary key index and the default record for
+   * this primary key. Next we get the 
+   */
+  const NdbRecord * pRowRecord = pTab->getDefaultRecord();
+  CHK_RET_FAILED(pRowRecord != 0, dict);
+
+  const NdbDictionary::Index* pIdx= dict->getIndex(pkIdxName, pTab->getName());
+  CHK_RET_FAILED(pIdx != 0, dict);
+
+  const NdbRecord * pIdxRecord = pIdx->getDefaultRecord();
+  CHK_RET_FAILED(pIdxRecord != 0, dict);
+
+  const Uint32 len = NdbDictionary::getRecordRowLength(pRowRecord);
+  Uint8 * pRow = new Uint8[len];
+  std::memset(pRow, 0, len);
+
+  HugoCalculator calc(* pTab);
+  calc.setValues(pRow, pRowRecord, 1001, 1);
+
+  {
+    NdbTransaction* pTrans = pNdb->startTransaction();
+    CHK_RET_FAILED(pTrans != 0, pNdb);
+
+    const NdbOperation* pOp =
+        pTrans->insertTuple(pRowRecord, (char*)pRow,
+                            pRowRecord, (char*)pRow,
+                            NULL, NULL);
+    CHK_RET_FAILED(pOp, pTrans);
+    int res = pTrans->execute(Commit, AbortOnError);
+    CHK_RET_FAILED(res == 0, pTrans);
+  }
+  {
+    NdbTransaction* pTrans = pNdb->startTransaction();
+    CHK_RET_FAILED(pTrans != 0, pNdb);
+
+    Uint32 buffer[1024];
+    NdbInterpretedCode code(pTab, &buffer[0], 1024);
+    int ret_code;
+    ret_code = code.load_const_u32(0, 0);
+    CHK3(ret_code);
+    ret_code = code.load_const_u32(1, 4000);
+    CHK3(ret_code);
+    ret_code = code.mul_reg(3, 0, 1);
+    CHK3(ret_code);
+    ret_code = code.div_reg(3, 0, 1);
+    CHK3(ret_code);
+    ret_code = code.read_full(Uint32(1), 0, 2);
+    CHK3(ret_code);
+    ret_code = code.branch_ge(2, 1, 0);
+    CHK3(ret_code);
+    ret_code = code.interpret_exit_nok();
+    CHK3(ret_code);
+    ret_code = code.def_label(0);
+    CHK3(ret_code);
+    ret_code = code.interpret_exit_ok();
+    CHK3(ret_code);
+    ret_code = code.finalise();
+    ndbout << "Error code: " << code.getNdbError().code << endl;
+    CHK3(ret_code);
+
+    NdbOperation::OperationOptions opts;
+    std::memset(&opts, 0, sizeof(opts));
+    opts.optionsPresent = NdbOperation::OperationOptions::OO_INTERPRETED;
+    opts.interpretedCode = &code;
+
+    const NdbOperation * pOp = pTrans->readTuple(pIdxRecord, (char*)pRow,
+                                                 pRowRecord, (char*)pRow,
+                                                 NdbOperation::LM_Read,
+                                                 0,
+                                                 &opts,
+                                                 sizeof(opts));
+
+    CHK_RET_FAILED(pOp, pTrans);
+    int res = pTrans->execute(Commit, AbortOnError);
+
+    CHK_RET_FAILED(res == 0, pTrans);
+  }
+  delete [] pRow;
+
+  printf("len: %u\n", len);
+  Uint32 i = 0;
+  for (; i < 4; i++)
+  {
+    if ((i & 3) == 0)
+    {
+      Uint32 *p = (Uint32*)&pRow[i];
+      printf("U32: 0x%x U8: ", *p);
+    }
+    printf("0x%x ", pRow[i]);
+    if ((i & 0x3) == 0x3)
+    {
+      printf("\n");
+    }
+  }
+  printf("\n");
+  printf("\n");
+  for (; i < (len - 4); i++)
+  {
+    if ((i & 3) == 0)
+    {
+      Uint32 *p = (Uint32*)&pRow[i];
+      printf("U32: 0x%x U8: ", *p);
+    }
+    printf("0x%x ", pRow[i]);
+    if ((i & 0x3) == 0x3)
+    {
+      printf("\n");
+    }
+  }
+  printf("\n");
+  printf("\n");
+  for (; i < len; i++)
+  {
+    if ((i & 3) == 0)
+    {
+      Uint32 *p = (Uint32*)&pRow[i];
+      printf("U32: 0x%x U8: ", *p);
+    }
+    printf("0x%x ", pRow[i]);
+    if ((i & 0x3) == 0x3)
+    {
+      printf("\n");
+    }
+  }
+  printf("\n");
   return NDBT_OK;
 }
 
@@ -1374,6 +1518,13 @@ TESTCASE("BranchNonZeroLabel", "Test branch labels with and_mask op\n")
 {
   INITIALIZER(runLoadTable);
   INITIALIZER(runTestBranchNonZeroLabel);
+  FINALIZER(runClearTable);
+}
+TESTCASE("NewInterpreterTest", "New interpreter tests\n")
+{
+  INITIALIZER(runLoadTable);
+  INITIALIZER(createPkIndex);
+  INITIALIZER(runNewInterpreterTest);
   FINALIZER(runClearTable);
 }
 #if 0

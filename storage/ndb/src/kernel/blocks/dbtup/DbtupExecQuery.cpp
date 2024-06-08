@@ -108,7 +108,7 @@
 #define DEB_LCP_LGMAN(arglist) do { } while (0)
 #endif
 
-// #define TRACE_INTERPRETER
+//#define TRACE_INTERPRETER
 
 /* For debugging */
 static void
