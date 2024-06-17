@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2003, 2023, Oracle and/or its affiliates.
-   Copyright (c) 2021, 2023, Hopsworks and/or its affiliates.
+   Copyright (c) 2021, 2024, Hopsworks and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License, version 2.0,
@@ -678,7 +678,7 @@ Dbtup::readFixedSizeTHManyWordNotNULL(Uint8* outBuffer,
 
   Uint32 newIndexBuf = indexBuf + srcBytes;
   Uint8* dst = (outBuffer + indexBuf);
-  const Uint8* src = (Uint8*)(tuple_header + readOffset);
+  Uint8* src = (Uint8*)(tuple_header + readOffset);
 
 #ifdef ERROR_INSERT
   thrjamDataDebug(req_struct->jamBuffer, attrNoOfWords);
@@ -706,7 +706,7 @@ Dbtup::readFixedSizeTHManyWordNotNULL(Uint8* outBuffer,
         }
         else
         {
-          dst += req_struct->start_partial_read_pos;
+          src += req_struct->start_partial_read_pos;
           srcBytes -= req_struct->start_partial_read_pos;
         }
         if (req_struct->partial_read_size < srcBytes)
@@ -913,7 +913,9 @@ Dbtup::varsize_reader(Uint8* outBuffer,
         }
         else
         {
-          dst += req_struct->start_partial_read_pos;
+          char *src = (char*)srcPtr;
+          src += req_struct->start_partial_read_pos;
+          srcPtr = src;
           srcBytes -= req_struct->start_partial_read_pos;
         }
         if (req_struct->partial_read_size < srcBytes)

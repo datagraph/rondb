@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2004, 2023, Oracle and/or its affiliates.
-   Copyright (c) 2021, 2023, Hopsworks and/or its affiliates.
+   Copyright (c) 2021, 2024, Hopsworks and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License, version 2.0,
@@ -402,9 +402,7 @@ ErrorBundle ErrorCodes[] = {
   { 812,  DMEC, IE, "812" },
   { 833,  DMEC, IE, "833" },
   { 871,  DMEC, IE, "No such interpreter instruction" },
-  { 872,  DMEC, IE, "Inconsistent length of read program" },
   { 882,  DMEC, IE, "Inconsistent sizes of interpreter code sections" },
-  { 887,  DMEC, IE, "Division by zero error in interpreter" },
   { 888,  DMEC, IE, "888" },
   { 890,  DMEC, IE, "Call error in interpreter" },
   { 891,  DMEC, IE, "SHIFT operand error in interpreter" },
@@ -451,6 +449,8 @@ ErrorBundle ErrorCodes[] = {
   { 851,  DMEC, AE, "Fixed-size column offset exceeded max. "
     "Use VARCHAR or COLUMN_FORMAT DYNAMIC for some columns"},
   { 850,  DMEC, AE, "Too long or too short default value"},
+  { 872,  DMEC, AE, "Inconsistent length of read program, missing EXIT instruction" },
+  { 875,  DMEC, AE, "Failed partial read instruction in interpreter, wrong position" },
   { 876,  DMEC, AE, "Inconsistent size of interpreter instructions" },
   { 877,  DMEC, AE, "Out of bounds memory address in interpreter instruction" },
   { 878,  DMEC, AE, "Register with NULL value involved in arithmetic operation" },
@@ -459,6 +459,8 @@ ErrorBundle ErrorCodes[] = {
   { 884,  DMEC, AE, "Stack overflow in interpreter" },
   { 885,  DMEC, AE, "Stack underflow in interpreter" },
   { 886,  DMEC, AE, "More than 8000 instructions executed in interpreter" },
+  { 887,  DMEC, AE, "Division by zero error in interpreter" },
+  { 894,  DMEC, AE, "Varsize disk columns not supported" },
   { 897,  DMEC, AE, "Update attempt of primary key via ndbcluster internal api"
                     " (if this occurs via the MySQL server it is a bug,"
                     " please report)" },

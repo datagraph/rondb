@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2003, 2023, Oracle and/or its affiliates.
-   Copyright (c) 2021, 2023, Hopsworks and/or its affiliates.
+   Copyright (c) 2021, 2024, Hopsworks and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License, version 2.0,
@@ -162,7 +162,7 @@ inline const Uint32* ALIGN_WORD(const void* ptr)
 #define ZBAD_DEFAULT_VALUE_LEN 850
 #define ZNO_INSTRUCTION_ERROR 871
 #define ZREAD_LENGTH_ERROR 872
-#define ZPARTIAL_READ_ERROR 873
+#define ZPARTIAL_READ_ERROR 875
 #define ZOUTSIDE_OF_PROGRAM_ERROR 876
 #define ZMEMORY_OFFSET_ERROR 877
 #define ZREGISTER_INIT_ERROR 878
@@ -182,6 +182,7 @@ inline const Uint32* ALIGN_WORD(const void* ptr)
 
 #define ZDYNAMIC_STORED_DISK_ERROR 801
 #define ZREAD_ONLY_CONSTRAINT_VIOLATION 893
+#define ZVAR_SIZED_NOT_SUPPORTED 894
 #define ZINCONSISTENT_NULL_ATTRIBUTE_COUNT 895
 #define ZTUPLE_CORRUPTED_ERROR 896
 #define ZTRY_UPDATE_PRIMARY_KEY 897

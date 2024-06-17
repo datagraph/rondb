@@ -232,13 +232,13 @@ public:
   int write_attr(const NdbDictionary::Column *column, Uint32 RegSource);
   int read_partial(Uint32 attrId,
                    Uint32 RegMemoryOffset,
-                   Uint32 RegSize,
                    Uint32 RegPos,
+                   Uint32 RegSize,
                    Uint32 RegDest);
   int read_partial(const NdbDictionary::Column *column,
                    Uint32 RegMemoryOffset,
-                   Uint32 RegSize,
                    Uint32 RegPos,
+                   Uint32 RegSize,
                    Uint32 RegDest);
   int read_full(Uint32 attrId,
                 Uint32 RegMemoryOffset,

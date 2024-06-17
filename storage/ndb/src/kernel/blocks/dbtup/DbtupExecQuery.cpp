@@ -4362,7 +4362,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
         }
         Uint32 read_pos = (Uint32)Tpos;
         Int64 Tsize= * (Int64*)(TregMemBuffer + TsizeRegister + 2);
-        if (unlikely(Tsize < 0 || Tsize >= (MAX_TUPLE_SIZE_IN_WORDS * 4)))
+        if (unlikely(Tsize <= 0 || Tsize >= (MAX_TUPLE_SIZE_IN_WORDS * 4)))
         {
 #ifdef TRACE_INTERPRETER
           g_eventLogger->info("Size %lld isn't ok, %u", Tsize, __LINE__);
@@ -4621,6 +4621,11 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  return TUPKEY_abort(req_struct, 20);
         }
         Uint32 memoryOffset = theInstruction >> 16;
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 0)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
 	Int64 Tvalue = * (Int64*)(TregMemBuffer+theRegister+2);
         Uint8 val = (Uint8)Tvalue;
         memcpy(&TheapMemoryChar[memoryOffset], &val, 1);
@@ -4635,6 +4640,11 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  return TUPKEY_abort(req_struct, 20);
         }
         Uint32 memoryOffset = theInstruction >> 16;
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 1)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
 	Int64 Tvalue = * (Int64*)(TregMemBuffer+theRegister+2);
         Uint16 val = (Uint16)Tvalue;
         memcpy(&TheapMemoryChar[memoryOffset], &val, 2);
@@ -4649,6 +4659,11 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  return TUPKEY_abort(req_struct, 20);
         }
         Uint32 memoryOffset = theInstruction >> 16;
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 3)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
 	Int64 Tvalue = * (Int64*)(TregMemBuffer+theRegister+2);
         Uint32 val = (Uint32)Tvalue;
         memcpy(&TheapMemoryChar[memoryOffset], &val, 4);
@@ -4663,6 +4678,11 @@ int Dbtup::interpreterNextLab(Signal* signal,
 	  return TUPKEY_abort(req_struct, 20);
         }
         Uint32 memoryOffset = theInstruction >> 16;
+        if (unlikely(memoryOffset > (MAX_HEAP_OFFSET - 7)))
+        {
+          jam();
+          return TUPKEY_abort(req_struct, 43);
+        }
 	Int64 Tvalue = * (Int64*)(TregMemBuffer+theRegister+2);
         memcpy(&TheapMemoryChar[memoryOffset], &Tvalue, 8);
         break;
