@@ -667,8 +667,13 @@ runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
     else if (i == 9)
     {
       code.load_const_u16(0, 29992);
-      code.read_partial(1, 0, 0, 0, 0);
+      code.load_const_u16(1, 0);
+      code.load_const_u16(2, 2);
+      code.read_partial(1, 0, 1, 2, 3);
+      code.branch_eq_null(3, 0);
       code.interpret_exit_ok();
+      code.def_label(0);
+      code.interpret_exit_nok();
       int ret_code = code.finalise();
       CHK3(ret_code);
     }
@@ -1000,7 +1005,7 @@ runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
       CHK_RET_FAILED(res == -1, pTrans);
       CHK_RET_FAILED(pTrans->getNdbError().code == 877, pTrans);
     }
-    else if (i == 3)
+    else if (i == 3 || i == 8)
     {
       CHK_RET_FAILED(res == -1, pTrans);
       CHK_RET_FAILED(pTrans->getNdbError().code == 876, pTrans);
@@ -1012,7 +1017,7 @@ runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
     else if (i == 10 || i == 11)
     {
       CHK_RET_FAILED(res == -1, pTrans);
-      CHK_RET_FAILED(pTrans->getNdbError().code == 873, pTrans);
+      CHK_RET_FAILED(pTrans->getNdbError().code == 875, pTrans);
     }
     pNdb->closeTransaction(pTrans);
   }
