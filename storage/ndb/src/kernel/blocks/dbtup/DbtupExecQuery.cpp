@@ -4319,6 +4319,12 @@ int Dbtup::interpreterNextLab(Signal* signal,
         }
         break;
       }
+      case Interpreter::WRITE_ATTR_FROM_MEM:
+      {
+      }
+      case Interpreter::APPEND_ATTR_FROM_MEM:
+      {
+      }
       case Interpreter::READ_PARTIAL_ATTR_TO_MEM:
       {
         jamDebug();

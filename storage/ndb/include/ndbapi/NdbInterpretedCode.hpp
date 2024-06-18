@@ -172,6 +172,28 @@ public:
   int load_const_u16(Uint32 RegDest, Uint32 Constant);
   int load_const_u32(Uint32 RegDest, Uint32 Constant);
   int load_const_u64(Uint32 RegDest, Uint64 Constant);
+  /* Load constant with variable size into memory
+   * This instruction is useful e.g. to use in appending
+   * to a variable sized column, it can also be used in
+   * any other way by the interpreted program.
+   *
+   * The memory needs to be aligned on 32-bit boundary.
+   * The size is the size in bytes however. The last bytes
+   * in the last word will be zero-filled if not a multiple
+   * of 4 bytes is sent.
+   *
+   * The RegMemoryOffset contains the memory offset where
+   * this memory will be saved in the interpreter.
+   * The RegDestSize is the register where the size of the
+   * const_memory will be stored as part of the instruction
+   * for use in later instructions.
+   *
+   * @return 0 if successful, -1 otherwise
+   */
+  int load_const_mem(Uint32 RegMemoryOffset,
+                     Uint32 RegDestSize,
+                     Uint16 SizeConstant,
+                     Uint32 *const_memory);
 
   /* Register to / from table attribute load and store 
    * -------------------------------------------------
@@ -219,6 +241,8 @@ public:
    *   write_attr     1 word    1 word
    *   read_partial   1 word    1 word
    *   read_full      1 word    1 word
+   *   write_from_mem 1 word    1 word
+   *   append_from_mem 1 word   1 word
    *
    * @param RegDest Register to load data into
    * @param attrId Table attribute to use
@@ -230,6 +254,18 @@ public:
   int read_attr(Uint32 RegDest, const NdbDictionary::Column *column);
   int write_attr(Uint32 attrId, Uint32 RegSource);
   int write_attr(const NdbDictionary::Column *column, Uint32 RegSource);
+  int write_from_mem(Uint32 attrId,
+                     Uint32 RegMemoryOffset,
+                     Uint32 RegSize);
+  int write_from_mem(const NdbDictionary::Column *column,
+                     Uint32 RegMemoryOffset,
+                     Uint32 RegSize);
+  int append_from_mem(Uint32 attrId,
+                      Uint32 RegMemoryOffset,
+                      Uint32 RegSize);
+  int append_from_mem(const NdbDictionary::Column *column,
+                      Uint32 RegMemoryOffset,
+                      Uint32 RegSize);
   int read_partial(Uint32 attrId,
                    Uint32 RegMemoryOffset,
                    Uint32 RegPos,
@@ -980,6 +1016,12 @@ private:
                         Uint32 RegSize,
                         Uint32 RegDest);
   int write_attr_impl(const NdbColumnImpl *c, Uint32 RegSource);
+  int write_from_mem_impl(const NdbColumnImpl *c,
+                          Uint32 RegMemoryOffset,
+                          Uint32 RegSize);
+  int append_from_mem_impl(const NdbColumnImpl *c,
+                           Uint32 RegMemoryOffset,
+                           Uint32 RegSize);
   int branch_col_val(Uint32 branch_type, Uint32 attrId, const void * val,
                      Uint32 len, Uint32 label);
   int branch_col_col(Uint32 branch_type, Uint32 attrId1, Uint32 attrId2,

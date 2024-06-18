@@ -386,7 +386,7 @@ int Dbtup::readAttributes(KeyReqStruct *req_struct,
   inBufIndex= 0;
   req_struct->out_buf_index= 0;
   req_struct->out_buf_bits = 0;
-  req_struct->partial_read_size = 0;
+  req_struct->partial_size = 0;
   req_struct->max_read= 4*maxRead;
   req_struct->xfrm_flag= false;  // Only read of keys may transform
   Uint8*outBuffer = (Uint8*)outBuf;
@@ -415,12 +415,12 @@ int Dbtup::readAttributes(KeyReqStruct *req_struct,
       Uint64 attrDes = (Uint64(attrDes2) << 32) +
                         Uint64(attrDescriptor);
 
-      if (unlikely(ahIn.getPartialReadFlag() != 0))
+      if (unlikely(ahIn.getPartialReadWriteFlag() != 0))
       {
         Uint32 next_word = inBuffer[inBufIndex];
         inBufIndex++;
         req_struct->start_partial_read_pos = next_word & 0xFFFF;
-        req_struct->partial_read_size = next_word >> 16;
+        req_struct->partial_size = next_word >> 16;
       }
       ReadFunction f= regTabPtr->readFunctionArray[attributeId];
       thrjamLineDebug(req_struct->jamBuffer, attributeId);
@@ -430,7 +430,7 @@ int Dbtup::readAttributes(KeyReqStruct *req_struct,
                       attrDes)))
       {
 
-        if (unlikely(req_struct->partial_read_size != 0))
+        if (unlikely(req_struct->partial_size != 0))
         {
           thrjam(req_struct->jamBuffer);
           return -(int)ZPARTIAL_READ_ERROR;
@@ -698,7 +698,7 @@ Dbtup::readFixedSizeTHManyWordNotNULL(Uint8* outBuffer,
     if (likely(newIndexBuf <= maxRead))
     {
       thrjamDebug(req_struct->jamBuffer);
-      if (unlikely(req_struct->partial_read_size != 0))
+      if (unlikely(req_struct->partial_size != 0))
       {
         handle_partial_read(req_struct,
                             &srcBytes,
@@ -789,7 +789,7 @@ Dbtup::readFixedSizeTHManyWordNULLable(Uint8* outBuffer,
   {
     thrjam(req_struct->jamBuffer);
     ahOut->setNULL();
-    req_struct->partial_read_size = 0;
+    req_struct->partial_size = 0;
     return true;
   }
 }
@@ -851,19 +851,19 @@ Dbtup::handle_partial_read(KeyReqStruct *req_struct,
     (*srcPtr) += req_struct->start_partial_read_pos;
     (*srcBytes) -= req_struct->start_partial_read_pos;
   }
-  if (req_struct->partial_read_size < (*srcBytes))
+  if (req_struct->partial_size < (*srcBytes))
   {
-    (*srcBytes) = req_struct->partial_read_size;
+    (*srcBytes) = req_struct->partial_size;
   }
   if (max_read != 0)
   {
-    if ((req_struct->partial_read_size +
+    if ((req_struct->partial_size +
          req_struct->start_partial_read_pos) > max_read)
     {
       return;
     }
   }
-  req_struct->partial_read_size = 0;
+  req_struct->partial_size = 0;
 }
 
 /* Shared code for reading static varsize and expanded dynamic attributes. */
@@ -925,7 +925,7 @@ Dbtup::varsize_reader(Uint8* outBuffer,
     {
       thrjamDebug(req_struct->jamBuffer);
       thrjamDataDebug(req_struct->jamBuffer, srcBytes);
-      if (unlikely(req_struct->partial_read_size != 0))
+      if (unlikely(req_struct->partial_size != 0))
       {
         Uint8* src_ptr = (Uint8*)srcPtr;
         handle_partial_read(req_struct,
@@ -994,7 +994,7 @@ Dbtup::xfrm_reader(Uint8* dstPtr,
 
   Uint32 lb, len;
   const bool ok = NdbSqlUtil::get_var_length(typeId, srcPtr, srcBytes, lb, len);
-  if (unlikely(req_struct->partial_read_size != 0))
+  if (unlikely(req_struct->partial_size != 0))
   {
     Uint8* src_ptr = (Uint8*)srcPtr;
     handle_partial_read(req_struct,
@@ -1126,7 +1126,7 @@ Dbtup::readVarSizeNULLable(Uint8* outBuffer,
   {
     thrjam(req_struct->jamBuffer);
     ahOut->setNULL();
-    req_struct->partial_read_size = 0;
+    req_struct->partial_size = 0;
     return true;
   }
 }
@@ -1219,7 +1219,7 @@ Dbtup::readDynFixedSizeExpandedNULLable(Uint8* outBuffer,
   {
     thrjamDebug(req_struct->jamBuffer);
     ahOut->setNULL();
-    req_struct->partial_read_size = 0;
+    req_struct->partial_size = 0;
     return true;
   }
 
@@ -1307,7 +1307,7 @@ Dbtup::readDynFixedSizeShrunkenNULLable(Uint8* outBuffer,
   {
     thrjamDebug(req_struct->jamBuffer);
     ahOut->setNULL();
-    req_struct->partial_read_size = 0;
+    req_struct->partial_size = 0;
     return true;
   }
 
@@ -1398,7 +1398,7 @@ Dbtup::readDynBigFixedSizeExpandedNULLable(Uint8* outBuffer,
   {
     thrjamDebug(req_struct->jamBuffer);
     ahOut->setNULL();
-    req_struct->partial_read_size = 0;
+    req_struct->partial_size = 0;
     return true;
   }
 
@@ -1479,7 +1479,7 @@ Dbtup::readDynBigFixedSizeShrunkenNULLable(Uint8* outBuffer,
   {
     thrjamDebug(req_struct->jamBuffer);
     ahOut->setNULL();
-    req_struct->partial_read_size = 0;
+    req_struct->partial_size = 0;
     return true;
   }
 
@@ -1702,7 +1702,7 @@ Dbtup::readDynVarSizeExpandedNULLable(Uint8* outBuffer,
   {
     thrjamDebug(req_struct->jamBuffer);
     ahOut->setNULL();
-    req_struct->partial_read_size = 0;
+    req_struct->partial_size = 0;
     return true;
   }
 
@@ -1782,7 +1782,7 @@ Dbtup::readDynVarSizeShrunkenNULLable(Uint8* outBuffer,
   {
     thrjamDebug(req_struct->jamBuffer);
     ahOut->setNULL();
-    req_struct->partial_read_size = 0;
+    req_struct->partial_size = 0;
     return true;
   }
 
@@ -1825,7 +1825,7 @@ Dbtup::readDiskFixedSizeNotNULL(Uint8* outBuffer,
     {
       thrjamDebug(req_struct->jamBuffer);
       thrjamDataDebug(req_struct->jamBuffer, (src[0] + (src[1] << 8)));
-      if (unlikely(req_struct->partial_read_size != 0))
+      if (unlikely(req_struct->partial_size != 0))
       {
         handle_partial_read(req_struct,
                             &srcBytes,
@@ -1924,7 +1924,7 @@ Dbtup::readDiskVarAsFixedSizeNotNULL(Uint8* outBuffer,
     if (likely(newIndexBuf <= maxRead))
     {
       thrjamDebug(req_struct->jamBuffer);
-      if (unlikely(req_struct->partial_read_size != 0))
+      if (unlikely(req_struct->partial_size != 0))
       {
         handle_partial_read(req_struct,
                             &srcBytes,
@@ -2062,6 +2062,7 @@ int Dbtup::updateAttributes(KeyReqStruct *req_struct,
 
   Uint32 inBufIndex= 0;
   req_struct->in_buf_index= 0;
+  req_struct->partial_size = 0;
   req_struct->in_buf_len= inBufLen;
 
   while (inBufIndex < inBufLen)
@@ -2086,6 +2087,10 @@ int Dbtup::updateAttributes(KeyReqStruct *req_struct,
           return -ZTRY_UPDATE_PRIMARY_KEY;
         }
       }
+      if (unlikely(ahIn.getPartialReadWriteFlag() != 0))
+      {
+        req_struct->partial_size = 1;
+      }
       UpdateFunction f= regTabPtr->updateFunctionArray[attributeId];
       thrjamLineDebug(req_struct->jamBuffer, attributeId);
       req_struct->changeMask.set(attributeId);
@@ -2094,6 +2099,11 @@ int Dbtup::updateAttributes(KeyReqStruct *req_struct,
                       attrDes)))
       {
         inBufIndex= req_struct->in_buf_index;
+        if (unlikely(req_struct->partial_size != 0))
+        {
+          thrjam(req_struct->jamBuffer);
+          return -(int)ZAPPEND_COLUMN_ERROR;
+        }
         continue;
       }
       else
@@ -2546,6 +2556,7 @@ Dbtup::updateVarSizeNotNULL(Uint32* in_buffer,
                          req_struct->m_var_data[ind].m_max_var_offset,
                          attrDes);
 }
+
 bool
 Dbtup::varsize_updater(Uint32* in_buffer,
                        KeyReqStruct *req_struct,
@@ -2576,11 +2587,11 @@ Dbtup::varsize_updater(Uint32* in_buffer,
   {
     if (!null_ind)
     {
-
       if (arrayType == NDB_ARRAYTYPE_SHORT_VAR)
       {
         thrjamDebug(req_struct->jamBuffer);
         dataLen = 1 + src[0];
+
       }
       else if (arrayType == NDB_ARRAYTYPE_MEDIUM_VAR)
       {
@@ -2595,11 +2606,31 @@ Dbtup::varsize_updater(Uint32* in_buffer,
             
       if (likely(dataLen == size_in_bytes))
       {
+        req_struct->partial_size = 0;
+        if (unlikely(ahIn.getPartialReadWriteFlag() &&
+            ((AttributeDescriptor::getNullable(attrDescriptor) == false) ||
+             (nullFlagCheck(req_struct, attrDes) == false))))
+        {
+          Uint8 *col_ptr = (Uint8*)(var_data_start + var_attr_pos);
+          if (!handle_partial_write(req_struct,
+                                    arrayType,
+                                    dataLen,
+                                    max_var_size,
+                                    col_ptr,
+                                    src,
+                                    &size_in_bytes))
+          {
+            return false;
+          }
+        }
+        else
+        {
+          thrjamDebug(req_struct->jamBuffer);
+          memcpy(var_data_start+var_attr_pos, src, size_in_bytes);
+        }
+        require(var_attr_pos+size_in_bytes <= check_offset);
         *len_offset_ptr= var_attr_pos+size_in_bytes;
         req_struct->in_buf_index= new_index;
-        
-        require(var_attr_pos+size_in_bytes <= check_offset);
-        memcpy(var_data_start+var_attr_pos, src, size_in_bytes);
         return true;
       }
       thrjam(req_struct->jamBuffer);
@@ -2617,6 +2648,71 @@ Dbtup::varsize_updater(Uint32* in_buffer,
   assert(false);
   req_struct->errorCode = ZAI_INCONSISTENCY_ERROR;
   return false;
+}
+
+bool
+Dbtup::handle_partial_write(KeyReqStruct *req_struct,
+                          Uint32 arrayType,
+                          Uint32 dataLen,
+                          Uint32 max_var_size,
+                          Uint8 *col_ptr,
+                          const Uint8 *src,
+                          Uint32 *size_in_bytes)
+{
+  /**
+   * Partial ReadWrite means that we are appending to the
+   * column rather than replacing it.
+   */
+  thrjamDebug(req_struct->jamBuffer);
+  Uint32 old_real_dataLen = 0;
+  if (arrayType == NDB_ARRAYTYPE_SHORT_VAR)
+  {
+    thrjamDebug(req_struct->jamBuffer);
+    old_real_dataLen = col_ptr[0];
+  }
+  else if (arrayType == NDB_ARRAYTYPE_MEDIUM_VAR)
+  {
+    thrjamDebug(req_struct->jamBuffer);
+    old_real_dataLen = col_ptr[0] + 256 * Uint32(col_ptr[1]);
+  }
+  else
+  {
+    thrjam(req_struct->jamBuffer);
+    assert(false);
+    req_struct->errorCode = ZAI_INCONSISTENCY_ERROR;
+    return false;
+  }
+  thrjamData(req_struct->jamBuffer, old_real_dataLen);
+  Uint32 tot_dataLen = dataLen + old_real_dataLen;
+  thrjamData(req_struct->jamBuffer, tot_dataLen);
+  if (tot_dataLen > max_var_size)
+  {
+    thrjam(req_struct->jamBuffer);
+    assert(false);
+    req_struct->errorCode = ZAI_INCONSISTENCY_ERROR;
+    return false;
+  }
+  Uint32 length_bytes = 0;
+  if (arrayType == NDB_ARRAYTYPE_SHORT_VAR)
+  {
+    thrjam(req_struct->jamBuffer);
+    col_ptr[0] = tot_dataLen;
+    length_bytes = 1;
+  }
+  else
+  {
+    thrjam(req_struct->jamBuffer);
+    require(arrayType == NDB_ARRAYTYPE_MEDIUM_VAR);
+    col_ptr[0] = tot_dataLen & 255;
+    col_ptr[1] = tot_dataLen >> 8;
+    length_bytes = 2;
+  }
+  (*size_in_bytes) = tot_dataLen;
+  char *start_pos = (char*)col_ptr + 2 + old_real_dataLen;
+  memcpy(start_pos,
+         &src[length_bytes],
+         dataLen - length_bytes);
+  return true;
 }
 
 bool

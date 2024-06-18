@@ -122,6 +122,9 @@ public:
   static constexpr Uint32 WRITE_UINT16_REG_TO_MEM = 54;
   static constexpr Uint32 WRITE_UINT32_REG_TO_MEM = 55;
   static constexpr Uint32 WRITE_INT64_REG_TO_MEM = 56;
+  static constexpr Uint32 WRITE_ATTR_FROM_MEM = 57;
+  static constexpr Uint32 APPEND_ATTR_FROM_MEM = 58;
+  static constexpr Uint32 LOAD_CONST_MEM = 59;
 
   /**
    * Macros for creating code
@@ -134,11 +137,20 @@ public:
                             Uint32 RegSize,
                             Uint32 RegDest);
   static Uint32 Write(Uint32 AttrId, Uint32 RegSource);
+  static Uint32 WriteFromMem(Uint32 attrId,
+                             Uint32 RegMemOffset,
+                             Uint32 RegSize);
+  static Uint32 AppendFromMem(Uint32 attrId,
+                              Uint32 RegMemOffset,
+                              Uint32 RegSize);
   
   static Uint32 LoadNull(Uint32 Register);
   static Uint32 LoadConst16(Uint32 Register, Uint32 Value);
   static Uint32 LoadConst32(Uint32 Register); // Value in next word
   static Uint32 LoadConst64(Uint32 Register); // Value in next 2 words
+  static Uint32 LoadConstMem(Uint32 RegMemoryOffset,
+                             Uint32 RegSize,
+                             Uint16 ConstantSize); //Value in words after
 
   static Uint32 Add(Uint32 DstReg, Uint32 SrcReg1, Uint32 SrcReg2);
   static Uint32 Sub(Uint32 DstReg, Uint32 SrcReg1, Uint32 SrcReg2);
@@ -352,6 +364,28 @@ Interpreter::Write(Uint32 AttrId, Uint32 Register){
 
 inline
 Uint32
+Interpreter::WriteFromMem(Uint32 AttrId,
+                          Uint32 RegMemoryOffset,
+                          Uint32 RegSize) {
+  return (AttrId << 16) +
+         (RegMemoryOffset << 6) +
+         (RegSize << 9) +
+         WRITE_ATTR_FROM_MEM;
+}
+
+inline
+Uint32
+Interpreter::AppendFromMem(Uint32 AttrId,
+                           Uint32 RegMemoryOffset,
+                           Uint32 RegSize) {
+  return (AttrId << 16) +
+         (RegMemoryOffset << 6) +
+         (RegSize << 9) +
+         APPEND_ATTR_FROM_MEM;
+}
+       
+inline
+Uint32
 Interpreter::LoadNull(Uint32 Register){
   return (Register << 6) + LOAD_CONST_NULL;
 }
@@ -372,6 +406,17 @@ inline
 Uint32
 Interpreter::LoadConst64(Uint32 Register){
   return (Register << 6) + LOAD_CONST64;
+}
+
+inline
+Uint32
+Interpreter::LoadConstMem(Uint32 RegisterOffset,
+                          Uint32 RegSize,
+                          Uint16 ConstantSize){
+  return (RegisterOffset << 6) +
+         (RegSize << 9) +
+         (ConstantSize << 16) +
+         LOAD_CONST_MEM;
 }
 
 inline

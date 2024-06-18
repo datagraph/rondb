@@ -169,6 +169,7 @@ inline const Uint32* ALIGN_WORD(const void* ptr)
 #define ZATTRIBUTE_ID_ERROR 879
 #define ZTRY_TO_READ_TOO_MUCH_ERROR 880
 #define ZTOTAL_LEN_ERROR 882
+#define ZAPPEND_COLUMN_ERROR 883
 #define ZSTACK_OVERFLOW_ERROR 884
 #define ZSTACK_UNDERFLOW_ERROR 885
 #define ZTOO_MANY_INSTRUCTIONS_ERROR 886
@@ -2024,7 +2025,7 @@ struct KeyReqStruct {
   Uint32          out_buf_bits;
   Uint32          in_buf_index;
 
-  Uint32          partial_read_size;
+  Uint32          partial_size;
 
   union {
     Uint32 in_buf_len;
@@ -2947,6 +2948,14 @@ private:
                                   Uint32 *srcBytes,
                                   Uint8 **srcPtr,
                                   Uint32 max_read);
+
+  static bool handle_partial_write(KeyReqStruct *req_struct,
+                                   Uint32 arrayType,
+                                   Uint32 dataLen,
+                                   Uint32 max_var_size,
+                                   Uint8 *col_ptr,
+                                   const Uint8 *src,
+                                   Uint32 *size_in_bytes);
 
   static bool varsize_reader(Uint8* out_buffer,
                       KeyReqStruct *req_struct,

@@ -626,6 +626,47 @@ NdbInterpretedCode::load_const_u16(Uint32 RegDest, Uint32 Constant)
   return add1(Interpreter::LoadConst16((RegDest % MaxReg), Constant));
 }
 
+static inline
+void
+zero32(Uint8* dstPtr, const Uint32 len)
+{
+  Uint32 odd = len & 3;
+  if (odd != 0)
+  {
+    Uint32 aligned = len & ~3;
+    Uint8* dst = dstPtr+aligned;
+    switch(odd){     /* odd is: {1..3} */
+    case 1:
+      dst[1] = 0;
+      [[fallthrough]];
+    case 2:
+      dst[2] = 0;
+      [[fallthrough]];
+    default:         /* Known to be odd==3 */
+      dst[3] = 0;
+    }
+  }
+} 
+
+int
+NdbInterpretedCode::load_const_mem(Uint32 RegMemoryOffset,
+                                   Uint32 RegDestSize,
+                                   Uint16 ConstantSize,
+                                   Uint32 *const_memory)
+{
+  int ret_code;
+  zero32((Uint8*)const_memory, ConstantSize);
+  if ((ret_code = add1(Interpreter::LoadConstMem(
+       RegMemoryOffset % MaxReg,
+       RegDestSize % MaxReg,
+       ConstantSize))))
+  {
+    return ret_code;
+  }
+  Uint32 words = (ConstantSize + 3) / 4;
+  return addN(const_memory, words);
+}
+
 int
 NdbInterpretedCode::read_attr_impl(const NdbColumnImpl *c, Uint32 RegDest)
 {
@@ -755,12 +796,91 @@ NdbInterpretedCode::read_attr(Uint32 RegDest,
 }
 
 int
+NdbInterpretedCode::write_from_mem_impl(const NdbColumnImpl *c,
+                                        Uint32 RegMemOffset,
+                                        Uint32 RegSize)
+{
+  if (c->m_storageType == NDB_STORAGETYPE_DISK)
+    m_flags|= UsesDisk;
+  return add1(Interpreter::WriteFromMem(c->m_attrId,
+                                        RegMemOffset % MaxReg,
+                                        RegSize % MaxReg));
+}
+
+int
+NdbInterpretedCode::write_from_mem(Uint32 attrId,
+                                   Uint32 RegMemOffset,
+                                   Uint32 RegSize)
+{
+  if (unlikely(m_table_impl == nullptr))
+    /* NdbInterpretedCode instruction requires that table is set */
+    return error(4538);
+  const NdbColumnImpl *c= m_table_impl->getColumn(attrId);
+  if (unlikely(c == nullptr))
+    return error(BadAttributeId);
+  return write_from_mem_impl(c, RegMemOffset, RegSize);
+}
+
+int
+NdbInterpretedCode::write_from_mem(const NdbDictionary::Column *column,
+                                   Uint32 RegMemOffset,
+                                   Uint32 RegSize)
+{
+  if (unlikely(m_table_impl == nullptr))
+    /* NdbInterpretedCode instruction requires that table is set */
+    return error(4538);
+  // TODO : Check column is from the right table
+  return write_from_mem_impl(&NdbColumnImpl::getImpl(*column),
+                             RegMemOffset, RegSize);
+}
+
+int
+NdbInterpretedCode::append_from_mem_impl(const NdbColumnImpl *c,
+                                         Uint32 RegMemOffset,
+                                         Uint32 RegSize)
+{
+  if (c->m_storageType == NDB_STORAGETYPE_DISK)
+    m_flags|= UsesDisk;
+  return add1(Interpreter::AppendFromMem(c->m_attrId,
+                                         RegMemOffset % MaxReg,
+                                         RegSize % MaxReg));
+}
+
+int
+NdbInterpretedCode::append_from_mem(Uint32 attrId,
+                                    Uint32 RegMemOffset,
+                                    Uint32 RegSize)
+{
+  if (unlikely(m_table_impl == nullptr))
+    /* NdbInterpretedCode instruction requires that table is set */
+    return error(4538);
+  const NdbColumnImpl *c= m_table_impl->getColumn(attrId);
+  if (unlikely(c == nullptr))
+    return error(BadAttributeId);
+  return append_from_mem_impl(c, RegMemOffset, RegSize);
+}
+
+int
+NdbInterpretedCode::append_from_mem(const NdbDictionary::Column *column,
+                                    Uint32 RegMemOffset,
+                                    Uint32 RegSize)
+{
+  if (unlikely(m_table_impl == nullptr))
+    /* NdbInterpretedCode instruction requires that table is set */
+    return error(4538);
+  // TODO : Check column is from the right table
+  return append_from_mem_impl(&NdbColumnImpl::getImpl(*column),
+                              RegMemOffset, RegSize);
+}
+
+int
 NdbInterpretedCode::write_attr_impl(const NdbColumnImpl *c, Uint32 RegSource)
 {
   if (c->m_storageType == NDB_STORAGETYPE_DISK)
     m_flags|= UsesDisk;
   return add1(Interpreter::Write(c->m_attrId, RegSource % MaxReg));
 }
+
 
 int
 NdbInterpretedCode::write_attr(Uint32 attrId, Uint32 RegSource)

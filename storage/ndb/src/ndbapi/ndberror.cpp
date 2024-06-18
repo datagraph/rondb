@@ -456,6 +456,7 @@ ErrorBundle ErrorCodes[] = {
   { 878,  DMEC, AE, "Register with NULL value involved in arithmetic operation" },
   { 879,  DMEC, AE, "Attribute id to read not existing" },
   { 880,  DMEC, AE, "Tried to read too much - too many getValue calls" },
+  { 883,  DMEC, AE, "Append to column from memory in interpreter failed" },
   { 884,  DMEC, AE, "Stack overflow in interpreter" },
   { 885,  DMEC, AE, "Stack underflow in interpreter" },
   { 886,  DMEC, AE, "More than 8000 instructions executed in interpreter" },

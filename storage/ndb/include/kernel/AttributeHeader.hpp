@@ -124,8 +124,8 @@ public:
   /** Getters and Setters */
   Uint32  getAttributeId() const;
   void    setAttributeId(Uint32);
-  Uint32  getPartialReadFlag() const;
-  void    setPartialReadFlag();
+  Uint32  getPartialReadWriteFlag() const;
+  void    setPartialReadWriteFlag();
   Uint32  getByteSize() const;
   void    setByteSize(Uint32);
   Uint32  getDataSize() const;   // In 32-bit words, rounded up
@@ -151,10 +151,11 @@ public:
 /**
  *           1111111111222222222233
  * 01234567890123456789012345678901
- * ssssssssssssssssiiiiiiiiiiiiiiii
+ * ssssssssssssssspiiiiiiiiiiiiiiii
  *
  * i = Attribute Id
- * s = Size of current "chunk" in bytes - 16 bits.
+ * p = Partial Read/Write flag
+ * s = Size of current "chunk" in bytes - 15 bits.
  *     To allow round up to word, max value is 0xFFFC (not checked).
  * e - [ obsolete future ]
  *     Element data/Blob, read element of array
@@ -213,38 +214,38 @@ void AttributeHeader::setAttributeId(Uint32 anAttributeId)
 inline
 Uint32 AttributeHeader::getByteSize() const
 {
-  return (m_value & 0xFFFF);
+  return (m_value & 0x7FFF);
 }
 
 inline
 void AttributeHeader::setByteSize(Uint32 aByteSize)
 {
-  m_value &= (~0xFFFF);
+  m_value &= (~0x7FFF);
   m_value |= aByteSize;
 }
 
 inline
 Uint32 AttributeHeader::getDataSize() const
 {
-  return (((m_value & 0xFFFF) + 3) >> 2);
+  return (((m_value & 0x7FFF) + 3) >> 2);
 }
 
 inline
-Uint32 AttributeHeader::getPartialReadFlag() const
+Uint32 AttributeHeader::getPartialReadWriteFlag() const
 {
-  return (m_value & 1);
+  return ((m_value >> 15) & 1);
 }
 
 inline
-void AttributeHeader::setPartialReadFlag()
+void AttributeHeader::setPartialReadWriteFlag()
 {
-  m_value |=  1;
+  m_value |=  (1 << 15);
 }
 
 inline
 void AttributeHeader::setDataSize(Uint32 aDataSize)
 {
-  m_value &= (~0xFFFF);
+  m_value &= (~0x7FFF);
   m_value |= (aDataSize << 2);
 }
 
@@ -300,13 +301,13 @@ AttributeHeader::print(FILE* output) {
 inline
 Uint32
 AttributeHeader::getByteSize(Uint32 m_value){
-  return (m_value & 0xFFFF);  
+  return (m_value & 0x7FFF);  
 }
 
 inline
 Uint32
 AttributeHeader::getDataSize(Uint32 m_value){
-  return (((m_value & 0xFFFF) + 3) >> 2);
+  return (((m_value & 0x7FFF) + 3) >> 2);
 }
 
 inline
@@ -315,7 +316,6 @@ AttributeHeader::getAttributeId(Uint32 m_value)
 {
   return m_value >> 16;
 }
-
 
 #undef JAM_FILE_ID
 
