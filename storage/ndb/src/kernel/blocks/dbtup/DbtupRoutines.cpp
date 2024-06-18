@@ -700,20 +700,10 @@ Dbtup::readFixedSizeTHManyWordNotNULL(Uint8* outBuffer,
       thrjamDebug(req_struct->jamBuffer);
       if (unlikely(req_struct->partial_read_size != 0))
       {
-        if (req_struct->start_partial_read_pos >= srcBytes)
-        {
-          srcBytes = 0;
-        }
-        else
-        {
-          src += req_struct->start_partial_read_pos;
-          srcBytes -= req_struct->start_partial_read_pos;
-        }
-        if (req_struct->partial_read_size < srcBytes)
-        {
-          srcBytes = req_struct->partial_read_size;
-        }
-        req_struct->partial_read_size = 0;
+        handle_partial_read(req_struct,
+                            &srcBytes,
+                            &src,
+                            0);
       }
       ahOut->setByteSize(srcBytes);
       memcpy(dst, src, srcBytes);
@@ -846,13 +836,43 @@ Dbtup::disk_nullFlagCheck(KeyReqStruct *req_struct, Uint64  attrDes)
   return BitmaskImpl::get(regTabPtr->m_offsets[DD].m_null_words, bits, pos);
 }
 
+void
+Dbtup::handle_partial_read(KeyReqStruct *req_struct,
+                           Uint32 *srcBytes,
+                           Uint8 **srcPtr,
+                           Uint32 max_read)
+{
+  if (req_struct->start_partial_read_pos >= (*srcBytes))
+  {
+    (*srcBytes) = 0;
+  }
+  else
+  {
+    (*srcPtr) += req_struct->start_partial_read_pos;
+    (*srcBytes) -= req_struct->start_partial_read_pos;
+  }
+  if (req_struct->partial_read_size < (*srcBytes))
+  {
+    (*srcBytes) = req_struct->partial_read_size;
+  }
+  if (max_read != 0)
+  {
+    if ((req_struct->partial_read_size +
+         req_struct->start_partial_read_pos) > max_read)
+    {
+      return;
+    }
+  }
+  req_struct->partial_read_size = 0;
+}
+
 /* Shared code for reading static varsize and expanded dynamic attributes. */
 bool
 Dbtup::varsize_reader(Uint8* outBuffer,
                       KeyReqStruct *req_struct,
                       AttributeHeader* ah_out,
                       Uint64 attrDes,
-                      const void * srcPtr,
+                      void * srcPtr,
                       Uint32 srcBytes)
 {
   assert(req_struct->out_buf_bits == 0);
@@ -907,22 +927,11 @@ Dbtup::varsize_reader(Uint8* outBuffer,
       thrjamDataDebug(req_struct->jamBuffer, srcBytes);
       if (unlikely(req_struct->partial_read_size != 0))
       {
-        if (req_struct->start_partial_read_pos >= srcBytes)
-        {
-          srcBytes = 0;
-        }
-        else
-        {
-          char *src = (char*)srcPtr;
-          src += req_struct->start_partial_read_pos;
-          srcPtr = src;
-          srcBytes -= req_struct->start_partial_read_pos;
-        }
-        if (req_struct->partial_read_size < srcBytes)
-        {
-          srcBytes = req_struct->partial_read_size;
-        }
-        req_struct->partial_read_size = 0;
+        Uint8* src_ptr = (Uint8*)srcPtr;
+        handle_partial_read(req_struct,
+                            &srcBytes,
+                            &src_ptr,
+                            0);
       }
       ah_out->setByteSize(srcBytes);
       memcpy(dst, srcPtr, srcBytes);
@@ -966,7 +975,7 @@ Dbtup::xfrm_reader(Uint8* dstPtr,
                    KeyReqStruct* req_struct, 
                    AttributeHeader* ahOut,
                    Uint64 attrDes,
-                   const void* srcPtr, Uint32 srcBytes)
+                   void* srcPtr, Uint32 srcBytes)
 {
   thrjam(req_struct->jamBuffer);
   assert(req_struct->out_buf_bits == 0);
@@ -985,6 +994,15 @@ Dbtup::xfrm_reader(Uint8* dstPtr,
 
   Uint32 lb, len;
   const bool ok = NdbSqlUtil::get_var_length(typeId, srcPtr, srcBytes, lb, len);
+  if (unlikely(req_struct->partial_read_size != 0))
+  {
+    Uint8* src_ptr = (Uint8*)srcPtr;
+    handle_partial_read(req_struct,
+                        &srcBytes,
+                        &src_ptr,
+                        lb);
+    return true;
+  }
   const unsigned defLen = maxBytes - lb;
   const Uint32 maxDstLen = NdbSqlUtil::strnxfrm_hash_len(cs, defLen);
   const Uint32 maxIndexBuf = indexBuf + (maxDstLen >> 2);
@@ -1079,7 +1097,7 @@ Dbtup::readVarSizeNotNULL(Uint8* out_buffer,
   Uint32 idx= req_struct->m_var_data[ind].m_var_len_offset;
   Uint32 next_attr_pos = req_struct->m_var_data[ind].m_offset_array_ptr[var_idx+idx];
   Uint32 srcBytes = next_attr_pos - var_attr_pos;
-  const char* src_ptr= req_struct->m_var_data[ind].m_data_ptr+var_attr_pos;
+  char* src_ptr= req_struct->m_var_data[ind].m_data_ptr+var_attr_pos;
 #ifdef TUP_DATA_VALIDATION
   thrjam(req_struct->jamBuffer);
   thrjamDataDebug(req_struct->jamBuffer, ind);
@@ -1798,7 +1816,7 @@ Dbtup::readDiskFixedSizeNotNULL(Uint8* outBuffer,
   Uint32 charsetFlag = AttributeOffset::getCharsetFlag(attrDes2);
   Uint32 newIndexBuf = indexBuf + srcBytes;
   Uint8* dst = (outBuffer + indexBuf);
-  const Uint8* src = (Uint8*)(tuple_header+readOffset);
+  Uint8* src = (Uint8*)(tuple_header+readOffset);
 
   require((readOffset + attrNoOfWords - 1) < req_struct->check_offset[DD]);
   if (! charsetFlag || ! req_struct->xfrm_flag) 
@@ -1807,6 +1825,13 @@ Dbtup::readDiskFixedSizeNotNULL(Uint8* outBuffer,
     {
       thrjamDebug(req_struct->jamBuffer);
       thrjamDataDebug(req_struct->jamBuffer, (src[0] + (src[1] << 8)));
+      if (unlikely(req_struct->partial_read_size != 0))
+      {
+        handle_partial_read(req_struct,
+                            &srcBytes,
+                            &src,
+                            0);
+      }
       ahOut->setByteSize(srcBytes);
       memcpy(dst, src, srcBytes);
       zero32(dst, srcBytes);
@@ -1877,7 +1902,7 @@ Dbtup::readDiskVarAsFixedSizeNotNULL(Uint8* outBuffer,
   Uint32 maxRead= req_struct->max_read;
   Uint32 charsetFlag = AttributeOffset::getCharsetFlag(attrDes2);
   Uint8* dst = (outBuffer + indexBuf);
-  const Uint8* src = (Uint8*)(tuple_header+readOffset);
+  Uint8* src = (Uint8*)(tuple_header+readOffset);
 
   Uint32 srcBytes = AttributeDescriptor::getSizeInBytes(attrDescriptor);
   Uint32 attrNoOfWords= (srcBytes + 3) >> 2;
@@ -1899,6 +1924,13 @@ Dbtup::readDiskVarAsFixedSizeNotNULL(Uint8* outBuffer,
     if (likely(newIndexBuf <= maxRead))
     {
       thrjamDebug(req_struct->jamBuffer);
+      if (unlikely(req_struct->partial_read_size != 0))
+      {
+        handle_partial_read(req_struct,
+                            &srcBytes,
+                            &src,
+                            0);
+      }
       ahOut->setByteSize(srcBytes);
       memcpy(dst, src, srcBytes);
       zero32(dst, srcBytes);

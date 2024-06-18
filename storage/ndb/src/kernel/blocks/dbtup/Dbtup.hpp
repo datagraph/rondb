@@ -2943,18 +2943,23 @@ private:
 
 //------------------------------------------------------------------
 //------------------------------------------------------------------
+  static void handle_partial_read(KeyReqStruct*,
+                                  Uint32 *srcBytes,
+                                  Uint8 **srcPtr,
+                                  Uint32 max_read);
+
   static bool varsize_reader(Uint8* out_buffer,
                       KeyReqStruct *req_struct,
                       AttributeHeader* ah_out,
                       Uint64 attr_des,
-                      const void* src_ptr,
+                      void* src_ptr,
                       Uint32 vsize_in_bytes);
   
   static bool xfrm_reader(Uint8* out_buffer,
                    KeyReqStruct *req_struct,
                    AttributeHeader* ah_out,
                    Uint64 attr_des,
-                   const void* src_ptr,
+                   void* src_ptr,
                    Uint32 srcBytes);
 
   static bool bits_reader(Uint8* out_buffer,

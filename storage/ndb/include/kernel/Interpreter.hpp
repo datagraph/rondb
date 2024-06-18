@@ -557,8 +557,8 @@ Interpreter::ReadInt64FromMemIntoRegConst(Uint32 Dcoleg, Uint16 Constant){
 inline
 Uint32
 Interpreter::ReadUint8FromMemIntoRegReg(Uint32 Dcoleg, Uint32 RegOffset){
-  return (Dcoleg << 6) +
-         (RegOffset << 9) +
+  return (Dcoleg << 9) +
+         (RegOffset << 6) +
          (1 << 15) +
          READ_UINT8_MEM_TO_REG;
 }
@@ -566,8 +566,8 @@ Interpreter::ReadUint8FromMemIntoRegReg(Uint32 Dcoleg, Uint32 RegOffset){
 inline
 Uint32
 Interpreter::ReadUint16FromMemIntoRegReg(Uint32 Dcoleg, Uint32 RegOffset){
-  return (Dcoleg << 6) +
-         (RegOffset << 9) +
+  return (Dcoleg << 9) +
+         (RegOffset << 6) +
          (1 << 15) +
          READ_UINT16_MEM_TO_REG;
 }
@@ -575,8 +575,8 @@ Interpreter::ReadUint16FromMemIntoRegReg(Uint32 Dcoleg, Uint32 RegOffset){
 inline
 Uint32
 Interpreter::ReadUint32FromMemIntoRegReg(Uint32 Dcoleg, Uint32 RegOffset){
-  return (Dcoleg << 6) +
-         (RegOffset << 9) +
+  return (Dcoleg << 9) +
+         (RegOffset << 6) +
          (1 << 15) +
          READ_UINT32_MEM_TO_REG;
 }
@@ -584,8 +584,8 @@ Interpreter::ReadUint32FromMemIntoRegReg(Uint32 Dcoleg, Uint32 RegOffset){
 inline
 Uint32
 Interpreter::ReadInt64FromMemIntoRegReg(Uint32 Dcoleg, Uint32 RegOffset){
-  return (Dcoleg << 6) +
-         (RegOffset << 9) +
+  return (Dcoleg << 9) +
+         (RegOffset << 6) +
          (1 << 15) +
          READ_INT64_MEM_TO_REG;
 }
