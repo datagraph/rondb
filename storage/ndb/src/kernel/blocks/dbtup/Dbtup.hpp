@@ -159,6 +159,10 @@ inline const Uint32* ALIGN_WORD(const void* ptr)
 #define ZAI_INCONSISTENCY_ERROR 829
 #define ZNO_ILLEGAL_NULL_ATTR 839
 #define ZNOT_NULL_ATTR 840
+#define ZAPPEND_ON_FIXED_SIZE_COLUMN_ERROR 841
+#define ZWRITE_SIZE_TOO_BIG_ERROR 842
+#define ZAPPEND_NULL_ERROR 843
+#define ZLOAD_MEM_TOO_BIG_ERROR 844
 #define ZBAD_DEFAULT_VALUE_LEN 850
 #define ZNO_INSTRUCTION_ERROR 871
 #define ZREAD_LENGTH_ERROR 872
@@ -4065,6 +4069,7 @@ private:
   Uint32 clogMemBuffer[ZATTR_BUFFER_SIZE + 16];
   Uint32 coutBuffer[ZATTR_BUFFER_SIZE + 16];
   Uint32 cinBuffer[ZATTR_BUFFER_SIZE + 16];
+  Uint32 cheapMemory[ZATTR_BUFFER_SIZE + 16];
 
   /*
    * In executeTrigger()
