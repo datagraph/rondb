@@ -1310,7 +1310,13 @@ NdbReceiver::handle_rec_attrs(NdbRecAttr* rec_attr_list,
                               const Uint32* aDataPtr,
                               Uint32 aLength)
 {
+  bool first_list = true;
   NdbRecAttr* currRecAttr = rec_attr_list;
+  if (currRecAttr == nullptr)
+  {
+    currRecAttr = rec_attr_list_final;
+    first_list = false;
+  }
 
   /* If we get here then there are some attribute values to be
    * read into the attached list of NdbRecAttrs.
@@ -1351,9 +1357,10 @@ NdbReceiver::handle_rec_attrs(NdbRecAttr* rec_attr_list,
         aLength -= add;
         aDataPtr += add;
         currRecAttr = currRecAttr->next();
-        if (currRecAttr == nullptr)
+        if (first_list && currRecAttr == nullptr)
         {
           currRecAttr = rec_attr_list_final;
+          first_list = false;
         }
       } else {
         /*

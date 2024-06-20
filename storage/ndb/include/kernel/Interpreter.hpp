@@ -865,6 +865,9 @@ Interpreter::getInstructionPreProcessingInfo(Uint32 *op,
   {
   case READ_ATTR_INTO_REG:
   case WRITE_ATTR_FROM_REG:
+  case WRITE_ATTR_FROM_MEM:
+  case APPEND_ATTR_FROM_MEM:
+    return op + 1;
 
   case LOAD_CONST_NULL:
   case LOAD_CONST16:
@@ -873,6 +876,13 @@ Interpreter::getInstructionPreProcessingInfo(Uint32 *op,
     return op + 2;
   case LOAD_CONST64:
     return op + 3;
+  case LOAD_CONST_MEM:
+  {
+    Uint32 instruction = *op;
+    Uint32 byte_length = instruction >> 16;
+    Uint32 word_length = (byte_length + 3) / 4;
+    return op + 1 + word_length;
+  }
 
   case ADD_REG_REG:
   case SUB_REG_REG:

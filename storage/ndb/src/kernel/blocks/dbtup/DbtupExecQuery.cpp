@@ -4392,7 +4392,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
          */
         AttributeHeader ah(attrId, Tsize);
         Uint32* memory_ptr = (Uint32*)&TheapMemoryChar[Toffset];
-        Uint32 words = (Tsize + 3) / 4;
+        Uint32 words = 1 + (Tsize + 3) / 4;
         memory_ptr[0] = ah.m_value;
         int TnoDataRW = updateAttributes(req_struct,
                                         memory_ptr,
@@ -4995,18 +4995,27 @@ int Dbtup::interpreterNextLab(Signal* signal,
         Uint32 Tsize = theInstruction >> 16;
         Uint32 words = (Tsize + 3) / 4;
         Int64 Toffset = * (Int64*)(TregMemBuffer + theRegister + 2);
-        if (unlikely(registerOffsetType != NULL_INDICATOR))
+        if (unlikely(registerOffsetType == NULL_INDICATOR))
         {
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("Line %u, Register init error", __LINE__);
+#endif
           return TUPKEY_abort(req_struct, ZREGISTER_INIT_ERROR);
         }
         if (unlikely(((Toffset + Int64(words << 2)) > MAX_HEAP_OFFSET) ||
                       ((Toffset & Int64(3)) != 0) ||
                       (Toffset < Int64(0))))
         {
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("Line %u, Offset error: %lld", __LINE__, Toffset);
           return TUPKEY_abort(req_struct, ZMEMORY_OFFSET_ERROR);
+#endif
         }
         if (unlikely(Tsize > (MAX_TUPLE_SIZE_IN_WORDS * 4)))
         {
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("Line %u, Size error: %u", __LINE__, Tsize);
+#endif
           return TUPKEY_abort(req_struct, ZLOAD_MEM_TOO_BIG_ERROR);
         }
 	TregMemBuffer[registerDestSize]= NOT_NULL_INDICATOR;
