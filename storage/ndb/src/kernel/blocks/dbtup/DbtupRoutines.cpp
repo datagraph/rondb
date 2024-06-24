@@ -42,6 +42,7 @@
 
 #define JAM_FILE_ID 402
 
+//#define TRACE_INTERPRETER
 
 void
 Dbtup::setUpQueryRoutines(Tablerec *regTabPtr)
@@ -391,6 +392,7 @@ int Dbtup::readAttributes(KeyReqStruct *req_struct,
   req_struct->xfrm_flag= false;  // Only read of keys may transform
   Uint8*outBuffer = (Uint8*)outBuf;
   thrjamDebug(req_struct->jamBuffer);
+  thrjamDataDebug(req_struct->jamBuffer, inBufLen);
   while (inBufIndex < inBufLen)
   {
     thrjamDebug(req_struct->jamBuffer);
@@ -410,6 +412,7 @@ int Dbtup::readAttributes(KeyReqStruct *req_struct,
     req_struct->out_buf_bits = 0;
     if (likely(attributeId < numAttributes))
     {
+      thrjamDebug(req_struct->jamBuffer);
       Uint32 attrDescriptor = attr_descr[descr_index];
       Uint32 attrDes2 = attr_descr[descr_index + 1];
       Uint64 attrDes = (Uint64(attrDes2) << 32) +
@@ -417,10 +420,16 @@ int Dbtup::readAttributes(KeyReqStruct *req_struct,
 
       if (unlikely(ahIn.getPartialReadWriteFlag() != 0))
       {
+        thrjamDebug(req_struct->jamBuffer);
         Uint32 next_word = inBuffer[inBufIndex];
         inBufIndex++;
-        req_struct->start_partial_read_pos = next_word & 0xFFFF;
-        req_struct->partial_size = next_word >> 16;
+        req_struct->partial_size = next_word & 0xFFFF;
+        req_struct->start_partial_read_pos = next_word >> 16;
+#ifdef TRACE_INTERPRETER
+        g_eventLogger->info("start_partial_read_pos: %u, partial_size: %u",
+                            req_struct->start_partial_read_pos,
+                            req_struct->partial_size);
+#endif
       }
       ReadFunction f= regTabPtr->readFunctionArray[attributeId];
       thrjamLineDebug(req_struct->jamBuffer, attributeId);
@@ -700,6 +709,7 @@ Dbtup::readFixedSizeTHManyWordNotNULL(Uint8* outBuffer,
       thrjamDebug(req_struct->jamBuffer);
       if (unlikely(req_struct->partial_size != 0))
       {
+        thrjamDebug(req_struct->jamBuffer);
         handle_partial_read(req_struct,
                             &srcBytes,
                             &src,
@@ -844,22 +854,41 @@ Dbtup::handle_partial_read(KeyReqStruct *req_struct,
 {
   if (req_struct->start_partial_read_pos >= (*srcBytes))
   {
+    thrjamDebug(req_struct->jamBuffer);
     (*srcBytes) = 0;
+#ifdef TRACE_INTERPRETER
+    g_eventLogger->info("0:handle_partial_read: srcBytes set to 0");
+#endif
   }
   else
   {
+    thrjamDebug(req_struct->jamBuffer);
     (*srcPtr) += req_struct->start_partial_read_pos;
     (*srcBytes) -= req_struct->start_partial_read_pos;
+#ifdef TRACE_INTERPRETER
+    g_eventLogger->info("1:handle_partial_read: srcBytes set to %u",
+                       (*srcBytes));
+#endif
   }
   if (req_struct->partial_size < (*srcBytes))
   {
+    thrjamDebug(req_struct->jamBuffer);
     (*srcBytes) = req_struct->partial_size;
+#ifdef TRACE_INTERPRETER
+    g_eventLogger->info("2:handle_partial_read: srcBytes set to %u",
+                       (*srcBytes));
+#endif
   }
   if (max_read != 0)
   {
+    thrjamDebug(req_struct->jamBuffer);
     if ((req_struct->partial_size +
          req_struct->start_partial_read_pos) > max_read)
     {
+#ifdef TRACE_INTERPRETER
+    g_eventLogger->info("handle_partial_read: max_read too small");
+#endif
+      thrjamDebug(req_struct->jamBuffer);
       return;
     }
   }
@@ -927,6 +956,7 @@ Dbtup::varsize_reader(Uint8* outBuffer,
       thrjamDataDebug(req_struct->jamBuffer, srcBytes);
       if (unlikely(req_struct->partial_size != 0))
       {
+        thrjamDebug(req_struct->jamBuffer);
         Uint8* src_ptr = (Uint8*)srcPtr;
         handle_partial_read(req_struct,
                             &srcBytes,
@@ -996,6 +1026,7 @@ Dbtup::xfrm_reader(Uint8* dstPtr,
   const bool ok = NdbSqlUtil::get_var_length(typeId, srcPtr, srcBytes, lb, len);
   if (unlikely(req_struct->partial_size != 0))
   {
+    thrjamDebug(req_struct->jamBuffer);
     Uint8* src_ptr = (Uint8*)srcPtr;
     handle_partial_read(req_struct,
                         &srcBytes,
@@ -1827,6 +1858,7 @@ Dbtup::readDiskFixedSizeNotNULL(Uint8* outBuffer,
       thrjamDataDebug(req_struct->jamBuffer, (src[0] + (src[1] << 8)));
       if (unlikely(req_struct->partial_size != 0))
       {
+        thrjamDebug(req_struct->jamBuffer);
         handle_partial_read(req_struct,
                             &srcBytes,
                             &src,
@@ -1926,6 +1958,7 @@ Dbtup::readDiskVarAsFixedSizeNotNULL(Uint8* outBuffer,
       thrjamDebug(req_struct->jamBuffer);
       if (unlikely(req_struct->partial_size != 0))
       {
+        thrjamDebug(req_struct->jamBuffer);
         handle_partial_read(req_struct,
                             &srcBytes,
                             &src,
@@ -2073,6 +2106,7 @@ int Dbtup::updateAttributes(KeyReqStruct *req_struct,
     Uint32 attrDescriptorIndex= attributeId * ZAD_SIZE;
     if (likely(attributeId < numAttributes))
     {
+      thrjamDebug(req_struct->jamBuffer);
       Uint32 attrDescriptor = attr_descr[attrDescriptorIndex];
       Uint32 attrDes2 = attr_descr[attrDescriptorIndex + 1];
       Uint64 attrDes = (Uint64(attrDes2) << 32) +
@@ -2098,6 +2132,7 @@ int Dbtup::updateAttributes(KeyReqStruct *req_struct,
                       req_struct,
                       attrDes)))
       {
+        thrjamDebug(req_struct->jamBuffer);
         inBufIndex= req_struct->in_buf_index;
         if (unlikely(req_struct->partial_size != 0))
         {
@@ -2580,6 +2615,13 @@ Dbtup::varsize_updater(Uint32* in_buffer,
   Uint32 arrayType = AttributeDescriptor::getArrayType(attrDescriptor);
   new_index= index_buf + vsize_in_words + 1;
 
+#ifdef TRACE_INTERPRETER
+  g_eventLogger->info("new_inx: %u, in_len: %u, size_bytes: %u, max_size: %u",
+                      new_index,
+                      in_buf_len,
+                      size_in_bytes,
+                      max_var_size);
+#endif
   Uint32 dataLen = size_in_bytes;
   const Uint8 * src = (const Uint8*)&in_buffer[index_buf + 1];
   
@@ -2611,6 +2653,7 @@ Dbtup::varsize_updater(Uint32* in_buffer,
             ((AttributeDescriptor::getNullable(attrDescriptor) == false) ||
              (nullFlagCheck(req_struct, attrDes) == false))))
         {
+          thrjamDebug(req_struct->jamBuffer);
           Uint8 *col_ptr = (Uint8*)(var_data_start + var_attr_pos);
           if (!handle_partial_write(req_struct,
                                     arrayType,
@@ -2665,15 +2708,26 @@ Dbtup::handle_partial_write(KeyReqStruct *req_struct,
    */
   thrjamDebug(req_struct->jamBuffer);
   Uint32 old_real_dataLen = 0;
+  Uint32 length_bytes = 0;
   if (arrayType == NDB_ARRAYTYPE_SHORT_VAR)
   {
     thrjamDebug(req_struct->jamBuffer);
     old_real_dataLen = col_ptr[0];
+    length_bytes = 1;
+#ifdef TRACE_INTERPRETER
+    g_eventLogger->info("append, 1 byte length, old_len: %u",
+                        old_real_dataLen);
+#endif
   }
   else if (arrayType == NDB_ARRAYTYPE_MEDIUM_VAR)
   {
     thrjamDebug(req_struct->jamBuffer);
     old_real_dataLen = col_ptr[0] + 256 * Uint32(col_ptr[1]);
+    length_bytes = 2;
+#ifdef TRACE_INTERPRETER
+    g_eventLogger->info("append, 2 byte length, old_len: %u",
+                        old_real_dataLen);
+#endif
   }
   else
   {
@@ -2683,7 +2737,10 @@ Dbtup::handle_partial_write(KeyReqStruct *req_struct,
     return false;
   }
   thrjamData(req_struct->jamBuffer, old_real_dataLen);
-  Uint32 tot_dataLen = dataLen + old_real_dataLen;
+  Uint32 tot_dataLen = (dataLen +
+                        old_real_dataLen) -
+                        length_bytes;
+  require((dataLen + old_real_dataLen) >= length_bytes);
   thrjamData(req_struct->jamBuffer, tot_dataLen);
   if (tot_dataLen > max_var_size)
   {
@@ -2692,12 +2749,14 @@ Dbtup::handle_partial_write(KeyReqStruct *req_struct,
     req_struct->errorCode = ZAI_INCONSISTENCY_ERROR;
     return false;
   }
-  Uint32 length_bytes = 0;
   if (arrayType == NDB_ARRAYTYPE_SHORT_VAR)
   {
     thrjam(req_struct->jamBuffer);
     col_ptr[0] = tot_dataLen;
-    length_bytes = 1;
+#ifdef TRACE_INTERPRETER
+    g_eventLogger->info("append, 1 byte length, new_len: %u",
+                        tot_dataLen);
+#endif
   }
   else
   {
@@ -2705,10 +2764,15 @@ Dbtup::handle_partial_write(KeyReqStruct *req_struct,
     require(arrayType == NDB_ARRAYTYPE_MEDIUM_VAR);
     col_ptr[0] = tot_dataLen & 255;
     col_ptr[1] = tot_dataLen >> 8;
-    length_bytes = 2;
+#ifdef TRACE_INTERPRETER
+    g_eventLogger->info("append, 2 byte length, new_len: %u",
+                        tot_dataLen);
+#endif
   }
-  (*size_in_bytes) = tot_dataLen;
-  char *start_pos = (char*)col_ptr + 2 + old_real_dataLen;
+  (*size_in_bytes) = tot_dataLen + length_bytes;
+  char *start_pos = (char*)col_ptr + 
+                    length_bytes +
+                    old_real_dataLen;
   memcpy(start_pos,
          &src[length_bytes],
          dataLen - length_bytes);

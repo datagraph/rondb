@@ -108,7 +108,7 @@
 #define DEB_LCP_LGMAN(arglist) do { } while (0)
 #endif
 
-#define TRACE_INTERPRETER
+//#define TRACE_INTERPRETER
 
 /* For debugging */
 static void
@@ -4473,8 +4473,12 @@ int Dbtup::interpreterNextLab(Signal* signal,
         AttributeHeader ah(attrId, Tsize);
         ah.setPartialReadWriteFlag();
         Uint32* memory_ptr = (Uint32*)&TheapMemoryChar[Toffset];
-        Uint32 words = (Tsize + 3) / 4;
+        Uint32 words = 1 + (Tsize + 3) / 4;
         memory_ptr[0] = ah.m_value;
+#ifdef TRACE_INTERPRETER
+        g_eventLogger->info("Toffset: %lld, Tsize: %lld, words: %u",
+                            Toffset, Tsize, words);
+#endif
         int TnoDataRW = updateAttributes(req_struct,
                                          memory_ptr,
                                          words);
@@ -4507,17 +4511,6 @@ int Dbtup::interpreterNextLab(Signal* signal,
         Uint32 TsizeRegister= Interpreter::getReg4(theInstruction) << 2;
         Uint32 TposType= TregMemBuffer[TposRegister];
         Uint32 TsizeType= TregMemBuffer[TsizeRegister];
-        if (unlikely(Toffset < 0 ||
-                     (Toffset > ((HEAP_MEMORY_SIZE_DWORDS * 8) -
-                      (MAX_TUPLE_SIZE_IN_WORDS * 4))) ||
-                     ((Toffset & Int64(3)) != 0)))
-        {
-#ifdef TRACE_INTERPRETER
-          g_eventLogger->info("Offset %lld isn't ok, %u", Toffset, __LINE__);
-#endif
-          return TUPKEY_abort(req_struct, ZMEMORY_OFFSET_ERROR);
-        }
-        Uint32 memory_offset = Uint32(Toffset);
         if (unlikely((ToffsetType == NULL_INDICATOR) ||
                      (TposType == NULL_INDICATOR) ||
                      (TsizeType == NULL_INDICATOR)))
@@ -4531,6 +4524,17 @@ int Dbtup::interpreterNextLab(Signal* signal,
 #endif
           return TUPKEY_abort(req_struct, ZREGISTER_INIT_ERROR);
         }
+        if (unlikely(Toffset < 0 ||
+                     (Toffset > ((HEAP_MEMORY_SIZE_DWORDS * 8) -
+                      (MAX_TUPLE_SIZE_IN_WORDS * 4))) ||
+                     ((Toffset & Int64(3)) != 0)))
+        {
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("Offset %lld isn't ok, %u", Toffset, __LINE__);
+#endif
+          return TUPKEY_abort(req_struct, ZMEMORY_OFFSET_ERROR);
+        }
+        Uint32 memory_offset = Uint32(Toffset);
         Int64 Tpos= * (Int64*)(TregMemBuffer + TposRegister + 2);
         if (unlikely(Tpos < 0 || Tpos >= (MAX_TUPLE_SIZE_IN_WORDS * 4)))
         {
@@ -4551,10 +4555,15 @@ int Dbtup::interpreterNextLab(Signal* signal,
         Uint32 read_size = (Uint32)Tsize;
         Uint32 TdestRegister= Interpreter::getReg3(theInstruction) << 2;
         Uint32 TattrId = theInstruction >> 19;
-        AttributeHeader ah(TattrId, 1); // 1 sets the partial read flag
+        AttributeHeader ah(TattrId, 0);
+        ah.setPartialReadWriteFlag();
         Uint32 TdataForRead[2];
         TdataForRead[0] = ah.m_value;
         TdataForRead[1] = read_size | read_pos << 16;
+#ifdef TRACE_INTERPRETER
+          g_eventLogger->info("Partial read of attribute %u, line: %u",
+                              TattrId, __LINE__);
+#endif
         int TnoDataRW= readAttributes(req_struct,
                                      &TdataForRead[0],
                                      (Uint32)2,
@@ -4583,7 +4592,7 @@ int Dbtup::interpreterNextLab(Signal* signal,
           * (Int64*)(TregMemBuffer+TdestRegister+2)= read_len;
           TregMemBuffer[TdestRegister]= NOT_NULL_INDICATOR;
 #ifdef TRACE_INTERPRETER
-          g_eventLogger->info("READ_ATTR_TO_MEM: Len: %u", read_len);
+          g_eventLogger->info("READ_PARTIAL_ATTR_TO_MEM: Len: %u", read_len);
 #endif
         }
         break; 

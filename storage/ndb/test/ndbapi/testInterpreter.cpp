@@ -575,12 +575,6 @@ runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
   const NdbRecord * pRowRecord = pTab->getDefaultRecord();
   CHK_RET_FAILED(pRowRecord != 0, dict);
 
-  const NdbDictionary::Index* pIdx= dict->getIndex(pkIdxName, pTab->getName());
-  CHK_RET_FAILED(pIdx != 0, dict);
-
-  const NdbRecord * pIdxRecord = pIdx->getDefaultRecord();
-  CHK_RET_FAILED(pIdxRecord != 0, dict);
-
   const Uint32 len = NdbDictionary::getRecordRowLength(pRowRecord);
   Uint8 * pRow = new Uint8[len];
   std::memset(pRow, 0, len);
@@ -588,7 +582,7 @@ runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
   HugoCalculator calc(* pTab);
   calc.equalForRow(pRow, pRowRecord, 0);
 
-  for (Uint32 i = 27; i < 28; i++)
+  for (Uint32 i = 0; i < 29; i++)
   {
     ndbout << "i = " << i << endl;
     NdbTransaction* pTrans = pNdb->startTransaction();
@@ -660,16 +654,16 @@ runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
     else if (i == 8)
     {
       code.load_const_u16(0, 29992);
-      code.read_partial(1, 0, 0, 0, 0);
+      code.read_partial(12, 0, 0, 0, 0);
       int ret_code = code.finalise();
       CHK3(ret_code);
     }
     else if (i == 9)
     {
-      code.load_const_u16(0, 29992);
+      code.load_const_u16(0, 8);
       code.load_const_u16(1, 0);
       code.load_const_u16(2, 2);
-      code.read_partial(1, 0, 1, 2, 3);
+      code.read_partial(12, 0, 1, 2, 3);
       code.branch_eq_null(3, 0);
       code.interpret_exit_ok();
       code.def_label(0);
@@ -681,7 +675,8 @@ runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
     {
       code.load_const_u16(0, 29992);
       code.load_const_u16(1, 40000);
-      code.read_partial(1, 0, 1, 0, 0);
+      code.load_const_u16(2, 10);
+      code.read_partial(12, 0, 1, 2, 0);
       code.interpret_exit_ok();
       int ret_code = code.finalise();
       CHK3(ret_code);
@@ -690,7 +685,8 @@ runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
     {
       code.load_const_u16(0, 29992);
       code.load_const_u16(1, 40000);
-      code.read_partial(1, 0, 0, 1, 0);
+      code.load_const_u16(2, 10);
+      code.read_partial(12, 0, 2, 1, 0);
       code.interpret_exit_ok();
       int ret_code = code.finalise();
       CHK3(ret_code);
@@ -981,11 +977,28 @@ runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
     }
     else if (i == 27)
     {
-      Uint32 mem = 1;
+      /* Use table T6 */
+      Uint32 mem = 0x12345602;
       code.load_const_u16(0, 4);
-      code.load_const_mem(0, 1, 4, &mem);
+      code.load_const_mem(0, 1, 3, &mem);
       code.load_const_u16(2, 0);
-      code.write_from_mem(2, 2, 1);
+      code.write_from_mem(14, 2, 1);
+      code.interpret_exit_ok();
+      int ret_code = code.finalise();
+      if (ret_code == -1)
+      {
+        //ndbout_c("error: %d", code.m_error.code);
+      }
+      CHK3(ret_code);
+    }
+    else if (i == 28)
+    {
+      /* Use table T6 */
+      Uint32 mem = 0x789ABC02;
+      code.load_const_u16(0, 4);
+      code.load_const_mem(0, 1, 3, &mem);
+      code.load_const_u16(2, 0);
+      code.append_from_mem(14, 2, 1);
       code.interpret_exit_ok();
       int ret_code = code.finalise();
       if (ret_code == -1)
@@ -995,15 +1008,16 @@ runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
       CHK3(ret_code);
     }
 
+
     NdbOperation::GetValueSpec getvals[1];
     NdbOperation::OperationOptions opts;
     std::memset(&opts, 0, sizeof(opts));
     opts.optionsPresent = NdbOperation::OperationOptions::OO_INTERPRETED;
     opts.interpretedCode = &code;
 
-    if (i == 27)
+    if (i == 27 || i == 28)
     {
-      getvals[0].column = pTab->getColumn(2);
+      getvals[0].column = pTab->getColumn(14);
       getvals[0].appStorage = nullptr;
       getvals[0].recAttr = nullptr;
       opts.optionsPresent |= NdbOperation::OperationOptions::OO_GET_FINAL_VALUE;
@@ -1013,7 +1027,7 @@ runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
     const NdbOperation *pOp;
     if (i <= 26)
     {
-      pOp = pTrans->readTuple(pIdxRecord, (char*)pRow,
+      pOp = pTrans->readTuple(pRowRecord, (char*)pRow,
                               pRowRecord, (char*)pRow,
                               NdbOperation::LM_Read,
                               0,
@@ -1022,9 +1036,9 @@ runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
     }
     else
     {
-      unsigned char mask[1];
-      mask[0] = 0;
-      pOp = pTrans->updateTuple(pIdxRecord, (char*)pRow,
+      unsigned char mask[60];
+      memset(&mask[0], 0, 60);
+      pOp = pTrans->updateTuple(pRowRecord, (char*)pRow,
                                 pRowRecord, (char*)pRow,
                                 (const unsigned char*)&mask[0],
                                 &opts,
@@ -1034,13 +1048,28 @@ runNewInterpreterTest(NDBT_Context* ctx, NDBT_Step* step)
     CHK_RET_FAILED(pOp, pTrans);
     int res = pTrans->execute(Commit, AbortOnError);
 
-    if (i == 27)
+    if (i == 27 || i == 28)
     {
       CHK_RET_FAILED(res == 0, pTrans);
       NdbRecAttr *recAttr = getvals[0].recAttr;
-      ndbout_c("Length: %u, val: %u",
+      Uint64 check;
+      if (i == 27)
+      {
+        check = 0x345602ULL;
+      }
+      else if (i == 28)
+      {
+        check = 0x9abc345604ULL;
+      }
+      else
+      {
+        check = 0;
+      }
+      ndbout_c("Length: %u, val: 0x%llx",
                recAttr->get_size_in_bytes(),
-               recAttr->u_32_value());
+               recAttr->u_64_value());
+      check -= recAttr->u_64_value();
+      CHK3(Uint32(check));
     }
     else if (i == 0 || i == 5)
     {

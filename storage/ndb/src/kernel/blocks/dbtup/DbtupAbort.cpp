@@ -438,6 +438,7 @@ int Dbtup::TUPKEY_abort(KeyReqStruct * req_struct, int error_type)
   {
     jam();
     jamData(error_type);
+    terrorCode = error_type;
   }
   else
   {
